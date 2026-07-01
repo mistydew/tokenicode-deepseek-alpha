@@ -26,8 +26,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://raw.githubusercontent.com/yiliqi78/TOKENICODE/dev/latest-alpha.json",
-        "https://gitee.com/yiliqiseven/TOKENICODE/raw/dev/latest-alpha-gitee.json"
+        "https://github.com/mistydew/tokenicode-deepseek-alpha/releases/latest/download/latest.json"
       ]
     }
   }
