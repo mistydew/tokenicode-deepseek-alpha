@@ -2,6 +2,13 @@
 
 ## 更新记录
 
+### v0.10.11-alpha.1
+
+- 修复 Skills 翻译 API 的 OpenAI/DeepSeek Base URL 拼接：填写 `https://api.deepseek.com` 时会自动请求 `/v1/chat/completions`。
+- 翻译请求增加 `Accept-Encoding: identity`，减少代理或网关压缩响应导致的 `error decoding response body`。
+- 翻译配置面板补充 Base URL / Proxy URL 说明，明确 Proxy URL 只是网络代理地址，通常可以留空。
+- 响应读取失败时会给出更明确的排查提示，方便定位 Base URL、代理或网关改写问题。
+
 ### v0.10.10-alpha.1
 
 - 修复切换 Provider 后仍保留旧模型选择的问题，避免把 `gemma4:12b` 这类本地模型名发给 DeepSeek / CC Switch 接口。

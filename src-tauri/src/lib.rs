@@ -861,8 +861,10 @@ fn provider_messages_endpoint(base_url: &str, api_format: &str) -> String {
     if api_format.eq_ignore_ascii_case("openai") {
         if lower.ends_with("/chat/completions") {
             base.to_string()
-        } else {
+        } else if lower.ends_with("/v1") {
             format!("{}/chat/completions", base)
+        } else {
+            format!("{}/v1/chat/completions", base)
         }
     } else if lower.ends_with("/v1/messages") {
         base.to_string()
@@ -4253,6 +4255,8 @@ async fn translate_skill_metadata(
     let mut request = client
         .post(url)
         .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .header("Accept-Encoding", "identity")
         .json(&body);
     if api_format == "openai" {
         request = request.header("Authorization", format!("Bearer {}", api_key));
@@ -4270,7 +4274,10 @@ async fn translate_skill_metadata(
     let text = response
         .text()
         .await
-        .map_err(|e| format!("Cannot read translation response: {}", e))?;
+        .map_err(|e| format!(
+            "Cannot read translation response: {}. Check that Base URL is the real API endpoint and Proxy URL is only a network proxy; if a local proxy is used, disable response compression/rewrite or leave Proxy URL empty.",
+            e
+        ))?;
     if !status.is_success() {
         return Err(format!(
             "Translation API returned HTTP {}: {}",
@@ -4401,6 +4408,8 @@ async fn translate_skill_markdown(
     let mut request = client
         .post(url)
         .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .header("Accept-Encoding", "identity")
         .json(&body);
     if api_format == "openai" {
         request = request.header("Authorization", format!("Bearer {}", api_key));
@@ -4418,7 +4427,10 @@ async fn translate_skill_markdown(
     let text = response
         .text()
         .await
-        .map_err(|e| format!("Cannot read translation response: {}", e))?;
+        .map_err(|e| format!(
+            "Cannot read translation response: {}. Check that Base URL is the real API endpoint and Proxy URL is only a network proxy; if a local proxy is used, disable response compression/rewrite or leave Proxy URL empty.",
+            e
+        ))?;
     if !status.is_success() {
         return Err(format!(
             "Translation API returned HTTP {}: {}",
@@ -7614,7 +7626,31 @@ pub fn run() {
 
 #[cfg(test)]
 mod decode_tests {
-    use super::decode_project_name;
+    use super::{decode_project_name, provider_messages_endpoint};
+
+    #[test]
+    fn test_openai_endpoint_adds_v1_for_bare_base_url() {
+        assert_eq!(
+            provider_messages_endpoint("https://api.deepseek.com", "openai"),
+            "https://api.deepseek.com/v1/chat/completions"
+        );
+    }
+
+    #[test]
+    fn test_openai_endpoint_keeps_v1_base_url() {
+        assert_eq!(
+            provider_messages_endpoint("https://api.deepseek.com/v1", "openai"),
+            "https://api.deepseek.com/v1/chat/completions"
+        );
+    }
+
+    #[test]
+    fn test_openai_endpoint_keeps_full_chat_completions_url() {
+        assert_eq!(
+            provider_messages_endpoint("https://api.deepseek.com/v1/chat/completions", "openai"),
+            "https://api.deepseek.com/v1/chat/completions"
+        );
+    }
 
     #[test]
     fn test_simple_path() {

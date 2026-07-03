@@ -365,6 +365,9 @@ export function SkillsPanel() {
               border border-border-subtle rounded-lg text-text-primary
               placeholder:text-text-tertiary outline-none focus:border-border-focus"
           />
+          <p className="mb-1.5 text-[10px] text-text-tertiary leading-relaxed">
+            OpenAI / DeepSeek 可填 https://api.deepseek.com，程序会自动补 /v1/chat/completions。
+          </p>
           <label className="block mb-1 text-[10px] text-text-tertiary">API Key</label>
           <input
             type="password"
@@ -395,6 +398,9 @@ export function SkillsPanel() {
               border border-border-subtle rounded-lg text-text-primary
               placeholder:text-text-tertiary outline-none focus:border-border-focus"
           />
+          <p className="mt-1 text-[10px] text-text-tertiary leading-relaxed">
+            Proxy URL 只填 Clash 等网络代理地址，不是 API 地址；不需要代理时请留空。
+          </p>
         </div>
       )}
 
