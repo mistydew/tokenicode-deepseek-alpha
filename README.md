@@ -2,6 +2,13 @@
 
 ## 更新记录
 
+### v0.10.12-alpha.1 发布补充
+
+- Release 已补齐 macOS 下载包：提供 Apple Silicon `aarch64` 和 Intel `x64` 两个 `.dmg`。
+- 新增 GitHub Actions `Mac Release` 工作流，以后可以直接在 GitHub 上按 tag 构建并上传 macOS 发行包。
+- macOS 发行包同时上传 SHA256 校验文件，方便用户核对下载完整性。
+- 由于当前仓库还没有配置 Tauri updater 签名私钥，macOS workflow 只生成普通 Release 下载包，不生成自动更新签名包。
+
 ### v0.10.12-alpha.1
 
 - 修正上一版对 DeepSeek OpenAI `base_url` 的处理：官网写法 `https://api.deepseek.com` 会请求 `/chat/completions`，不再强行补 `/v1`。
@@ -154,19 +161,21 @@
 | 主题 | 以原有浅/深色和背景为主 | 新增 VS Code Dark、纯白简约等更偏工作流的界面风格 |
 | 字体 | 字体跟随范围有限，部分小标签仍固定等宽 | 增加字体选择，并让小标签/路径/模型名等区域默认跟随界面字体 |
 | 新对话目录 | 新建对话时容易回到重新选文件夹流程 | 记住上次项目目录，新任务直接进入默认文件夹，并可在输入框下方快速切换 |
-| 发布包 | 需要自行构建或使用原项目发布 | Release 提供 Windows x64 exe / zip 和 SHA256 校验文件 |
+| 发布包 | 需要自行构建或使用原项目发布 | Release 提供 Windows x64 exe、macOS Apple Silicon / Intel dmg 和 SHA256 校验文件 |
 
 ## 下载
 
-请到 GitHub Releases 下载 Windows 便携版：
+请到 GitHub Releases 下载最新版本：
 
-- `tokenicode-deepseek-alpha-windows-x64.exe`
+- Windows x64：`tokenicode-deepseek-alpha-v0.10.12-alpha.1-windows-x64.exe`
+- macOS Apple Silicon：`tokenicode-deepseek-alpha-v0.10.12-alpha.1-macos-apple-silicon-0.10.12_aarch64.dmg`
+- macOS Intel：`tokenicode-deepseek-alpha-v0.10.12-alpha.1-macos-intel-0.10.12_x64.dmg`
 
-下载后双击运行即可。首次运行时请按需要配置 CC Switch / DeepSeek API。
+每个发行包旁边都有对应的 `.sha256.txt` 校验文件。下载后直接运行即可；首次运行时请按需要配置 CC Switch / DeepSeek API。
 
 ## 快速开始
 
-1. 下载 release 里的 Windows exe。
+1. 从 release 下载对应系统的安装包。
 2. 打开 TOKENICODE。
 3. 在设置里配置 API Provider，或在 Skills 面板里单独配置翻译 API。
 4. 选择项目文件夹，开始对话。
