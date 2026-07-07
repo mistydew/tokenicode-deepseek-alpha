@@ -47,10 +47,19 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Create macOS release config
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const config = JSON.parse(fs.readFileSync('editions/alpha/tauri.alpha.conf.json', 'utf8'));
+          config.bundle = { ...(config.bundle || {}), createUpdaterArtifacts: false };
+          fs.writeFileSync('tauri.macos.release.conf.json', JSON.stringify(config, null, 2));
+          NODE
+
       - name: Build macOS app
         env:
           EDITION: alpha
-        run: pnpm tauri build --target ${{ matrix.target }} --config editions/alpha/tauri.alpha.conf.json
+        run: pnpm tauri build --target ${{ matrix.target }} --config tauri.macos.release.conf.json
 
       - name: Prepare release assets
         shell: bash
