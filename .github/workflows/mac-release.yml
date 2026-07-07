@@ -1,0 +1,72 @@
+name: Mac Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build, for example v0.10.12-alpha.1"
+        required: true
+        type: string
+
+jobs:
+  build-mac:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: apple-silicon
+          - target: x86_64-apple-darwin
+            arch: intel
+
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build macOS app
+        env:
+          EDITION: alpha
+        run: pnpm tauri build --target ${{ matrix.target }} --config editions/alpha/tauri.alpha.conf.json
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          find src-tauri/target/${{ matrix.target }}/release/bundle -type f \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" \) -print0 |
+            while IFS= read -r -d '' file; do
+              base="$(basename "$file")"
+              ext="${base#TCAlpha_}"
+              cp "$file" "release-assets/tokenicode-deepseek-alpha-${{ inputs.tag }}-macos-${{ matrix.arch }}-${ext}"
+            done
+          shasum -a 256 release-assets/* > "release-assets/tokenicode-deepseek-alpha-${{ inputs.tag }}-macos-${{ matrix.arch }}.sha256.txt"
+          ls -lh release-assets
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ inputs.tag }}" release-assets/* --repo "${{ github.repository }}" --clobber
