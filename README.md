@@ -2,6 +2,12 @@
 
 ## 更新记录
 
+### 下一版（未发布）
+
+- 修复 1M 上下文模式下可用上下文显示异常的问题：新一轮发送时不再把上下文计数直接清零，避免出现“突然 100% free / 归零”的错觉。
+- 修正 token 统计语义：`message_start` / `message_delta` 上报的是当前轮 usage 快照，不再当成增量反复累加。
+- 可用上下文条现在使用最新 CLI usage 快照估算，累计 token 统计改由最终 `result.usage` 追加，避免 live context meter 和累计用量互相污染。
+
 ### v0.10.12-alpha.1 发布补充
 
 - Release 已补齐 macOS 下载包：提供 Apple Silicon `aarch64` 和 Intel `x64` 两个 `.dmg`。

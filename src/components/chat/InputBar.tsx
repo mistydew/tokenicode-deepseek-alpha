@@ -821,8 +821,7 @@ export function InputBar() {
     setSessionMeta(tabId, {
       turnStartTime: turnStartedAt,
       lastProgressAt: turnStartedAt,
-      inputTokens: 0,
-      outputTokens: 0,
+      ...(!existingStdinId ? { inputTokens: 0, outputTokens: 0 } : {}),
     });
     useChatStore.getState().setActivityStatus(tabId, { phase: 'thinking' });
     lastStderrRef.current = ''; // Clear stale stderr before new turn
