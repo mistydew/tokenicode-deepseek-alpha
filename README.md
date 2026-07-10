@@ -2,7 +2,7 @@
 
 ## 更新记录
 
-### 下一版（未发布）
+### v0.10.13-alpha.1
 
 - 优化应用启动与首屏加载：设置、文件预览、Skills、插件和网页 Preview 等低频界面改为按需加载，不再全部塞进启动包。
 - 文件预览使用的 CodeMirror 与多语言解析器只在真正打开文件时加载，降低启动阶段的 JavaScript 解析开销。
@@ -177,9 +177,9 @@
 
 请到 GitHub Releases 下载最新版本：
 
-- Windows x64：`tokenicode-deepseek-alpha-v0.10.12-alpha.1-windows-x64.exe`
-- macOS Apple Silicon：`tokenicode-deepseek-alpha-v0.10.12-alpha.1-macos-apple-silicon-0.10.12_aarch64.dmg`
-- macOS Intel：`tokenicode-deepseek-alpha-v0.10.12-alpha.1-macos-intel-0.10.12_x64.dmg`
+- Windows x64：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-windows-x64.exe`
+- macOS Apple Silicon：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-macos-apple-silicon-0.10.13_aarch64.dmg`
+- macOS Intel：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-macos-intel-0.10.13_x64.dmg`
 
 每个发行包旁边都有对应的 `.sha256.txt` 校验文件。下载后直接运行即可；首次运行时请按需要配置 CC Switch / DeepSeek API。
 
