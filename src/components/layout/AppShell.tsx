@@ -1,7 +1,9 @@
-import { useCallback, useRef, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useRef, useEffect, useState } from 'react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useFileStore } from '../../stores/fileStore';
-import { FilePreview } from '../files/FilePreview';
+
+const FilePreview = lazy(() => import('../files/FilePreview')
+  .then((module) => ({ default: module.FilePreview })));
 
 interface AppShellProps {
   sidebar: React.ReactNode;
@@ -257,7 +259,11 @@ export function AppShell({ sidebar, main, secondary }: AppShellProps) {
       >
         <div className="h-full overflow-hidden flex flex-col bg-bg-chat"
           style={{ width: `${previewWidth}px` }}>
-          <FilePreview />
+          {isFilePreviewMode && (
+            <Suspense fallback={<div className="h-full bg-bg-chat" />}>
+              <FilePreview />
+            </Suspense>
+          )}
         </div>
       </div>
 
