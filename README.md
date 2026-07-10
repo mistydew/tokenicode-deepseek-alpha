@@ -177,7 +177,9 @@
 
 请到 GitHub Releases 下载最新版本：
 
-- Windows x64：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-windows-x64.exe`
+- Windows x64 便携版：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-windows-x64.exe`
+- Windows x64 安装版：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-windows-x64-setup.exe`
+- Windows x64 MSI：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-windows-x64.msi`
 - macOS Apple Silicon：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-macos-apple-silicon-0.10.13_aarch64.dmg`
 - macOS Intel：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-macos-intel-0.10.13_x64.dmg`
 
