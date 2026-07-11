@@ -2,6 +2,11 @@
 
 ## 更新记录
 
+### v0.10.15-alpha.1
+
+- 选择项目文件夹后，会自动显示同目录下由终端 Claude Code 创建的历史会话，不再只显示 TOKENICODE 自己追踪的会话。
+- 外部终端会话会标记为 `CLI`，可以加载并继续对话；为避免误删原始终端历史，外部会话在 TOKENICODE 内为只读历史，删除入口会隐藏且后端会拒绝删除。
+
 ### v0.10.14-alpha.1
 
 - 对话和 Markdown 文件预览支持 LaTeX：行内公式使用 `$...$`，独立公式使用 `$$...$$`，仅在消息包含公式时按需加载 KaTeX。
@@ -183,11 +188,11 @@
 
 请到 GitHub Releases 下载最新版本：
 
-- Windows x64 便携版：`tokenicode-deepseek-alpha-v0.10.14-alpha.1-windows-x64.exe`
-- Windows x64 安装版：`tokenicode-deepseek-alpha-v0.10.14-alpha.1-windows-x64-setup.exe`
-- Windows x64 MSI：`tokenicode-deepseek-alpha-v0.10.14-alpha.1-windows-x64.msi`
-- macOS Apple Silicon：`tokenicode-deepseek-alpha-v0.10.14-alpha.1-macos-apple-silicon-0.10.14_aarch64.dmg`
-- macOS Intel：`tokenicode-deepseek-alpha-v0.10.14-alpha.1-macos-intel-0.10.14_x64.dmg`
+- Windows x64 便携版：`tokenicode-deepseek-alpha-v0.10.15-alpha.1-windows-x64.exe`
+- Windows x64 安装版：`tokenicode-deepseek-alpha-v0.10.15-alpha.1-windows-x64-setup.exe`
+- Windows x64 MSI：`tokenicode-deepseek-alpha-v0.10.15-alpha.1-windows-x64.msi`
+- macOS Apple Silicon：`tokenicode-deepseek-alpha-v0.10.15-alpha.1-macos-apple-silicon-0.10.15_aarch64.dmg`
+- macOS Intel：`tokenicode-deepseek-alpha-v0.10.15-alpha.1-macos-intel-0.10.15_x64.dmg`
 
 每个发行包旁边都有对应的 `.sha256.txt` 校验文件。下载后直接运行即可；首次运行时请按需要配置 CC Switch / DeepSeek API。
 

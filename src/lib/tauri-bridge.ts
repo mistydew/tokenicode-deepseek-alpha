@@ -44,6 +44,8 @@ export interface SessionListItem {
   projectDir: string;
   modifiedAt: number;
   preview: string;
+  /** True when this history was created outside TOKENICODE, e.g. terminal Claude Code. */
+  isExternal?: boolean;
 }
 
 export interface ContentSearchResult {

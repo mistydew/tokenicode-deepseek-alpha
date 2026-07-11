@@ -210,7 +210,15 @@ export const SessionItem = memo(function SessionItem({
         <span className="text-[10px] text-text-tertiary flex-shrink-0">
           {formatRelativeTime(session.modifiedAt)}
         </span>
-        {!multiSelect && !isRenaming && onDelete && (
+        {session.isExternal && (
+          <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium
+            bg-bg-tertiary text-text-tertiary"
+            title={t('conv.externalSession')}
+          >
+            CLI
+          </span>
+        )}
+        {!multiSelect && !isRenaming && onDelete && !session.isExternal && (
           <span
             role="button"
             tabIndex={0}

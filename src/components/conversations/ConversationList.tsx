@@ -416,7 +416,7 @@ export function ConversationList() {
     const allSessions = useSessionStore.getState().sessions;
     const projectSessions = allSessions.filter((s) => {
       const raw = s.project || s.projectDir;
-      return raw.endsWith(suffix);
+      return raw.endsWith(suffix) && !s.isExternal;
     });
     if (projectSessions.length === 0) return;
     setDeleteAllTarget({ projectKey, count: projectSessions.length });
@@ -428,7 +428,7 @@ export function ConversationList() {
     const allSessions = useSessionStore.getState().sessions;
     const projectSessions = allSessions.filter((s) => {
       const raw = s.project || s.projectDir;
-      return raw.endsWith(suffix);
+      return raw.endsWith(suffix) && !s.isExternal;
     });
     for (const session of projectSessions) {
       await executeDelete(session.id, session.path);

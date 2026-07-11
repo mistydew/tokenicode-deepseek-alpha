@@ -2086,6 +2086,10 @@ fn cleanup_tracked_sessions() {
 /// Delete a session: remove from tracking file and delete the .jsonl file
 #[tauri::command]
 async fn delete_session(session_id: String, session_path: String) -> Result<(), String> {
+    if !load_tracked_sessions().contains(&session_id) {
+        return Err("External Claude Code sessions are read-only in TOKENICODE".to_string());
+    }
+
     // Remove from tracking file
     let track_path = tracked_sessions_path();
     if track_path.exists() {
@@ -2137,7 +2141,8 @@ async fn list_sessions() -> Result<Vec<Value>, String> {
         return Ok(vec![]);
     }
 
-    // Only show sessions tracked by TOKENICODE
+    // TOKENICODE and terminal Claude Code store compatible JSONL files here.
+    // Track ownership only to keep external sessions read-only, not hidden.
     let tracked = load_tracked_sessions();
 
     let mut sessions = vec![];
@@ -2151,10 +2156,12 @@ async fn list_sessions() -> Result<Vec<Value>, String> {
                             if let Some(name) = path.file_stem() {
                                 let id = name.to_string_lossy().to_string();
 
-                                // Skip sessions not created by TOKENICODE
-                                if !tracked.contains(&id) {
+                                // desk_* IDs are transient TOKENICODE process keys, never real
+                                // Claude conversation history.
+                                if id.starts_with("desk_") {
                                     continue;
                                 }
+                                let is_external = !tracked.contains(&id);
 
                                 // Get file metadata for timestamp
                                 let modified = std::fs::metadata(&path)
@@ -2183,6 +2190,7 @@ async fn list_sessions() -> Result<Vec<Value>, String> {
                                     "projectDir": project_dir,
                                     "modifiedAt": modified,
                                     "preview": preview,
+                                    "isExternal": is_external,
                                 }));
                             }
                         }
