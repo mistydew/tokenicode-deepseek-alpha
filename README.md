@@ -2,6 +2,12 @@
 
 ## 更新记录
 
+### v0.10.14-alpha.1
+
+- 对话和 Markdown 文件预览支持 LaTeX：行内公式使用 `$...$`，独立公式使用 `$$...$$`，仅在消息包含公式时按需加载 KaTeX。
+- 修复 MCP 实际未加载的问题：TOKENICODE 不再默认用 `--strict-mcp-config` 屏蔽 CC Switch / Claude Code 写入的全局 MCP。
+- MCP 设置页新增“在新对话中加载 MCP”开关；默认开启，需要更快冷启动时可关闭，切换后从新会话开始生效。
+
 ### v0.10.13-alpha.1
 
 - 优化应用启动与首屏加载：设置、文件预览、Skills、插件和网页 Preview 等低频界面改为按需加载，不再全部塞进启动包。
@@ -177,11 +183,11 @@
 
 请到 GitHub Releases 下载最新版本：
 
-- Windows x64 便携版：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-windows-x64.exe`
-- Windows x64 安装版：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-windows-x64-setup.exe`
-- Windows x64 MSI：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-windows-x64.msi`
-- macOS Apple Silicon：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-macos-apple-silicon-0.10.13_aarch64.dmg`
-- macOS Intel：`tokenicode-deepseek-alpha-v0.10.13-alpha.1-macos-intel-0.10.13_x64.dmg`
+- Windows x64 便携版：`tokenicode-deepseek-alpha-v0.10.14-alpha.1-windows-x64.exe`
+- Windows x64 安装版：`tokenicode-deepseek-alpha-v0.10.14-alpha.1-windows-x64-setup.exe`
+- Windows x64 MSI：`tokenicode-deepseek-alpha-v0.10.14-alpha.1-windows-x64.msi`
+- macOS Apple Silicon：`tokenicode-deepseek-alpha-v0.10.14-alpha.1-macos-apple-silicon-0.10.14_aarch64.dmg`
+- macOS Intel：`tokenicode-deepseek-alpha-v0.10.14-alpha.1-macos-intel-0.10.14_x64.dmg`
 
 每个发行包旁边都有对应的 `.sha256.txt` 校验文件。下载后直接运行即可；首次运行时请按需要配置 CC Switch / DeepSeek API。
 

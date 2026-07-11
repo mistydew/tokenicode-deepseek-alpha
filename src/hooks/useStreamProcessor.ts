@@ -1560,6 +1560,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
                   provider_id: useProviderStore.getState().activeProviderId || undefined,
                   context_window: getContextWindowForModel(retryResolvedModel, retryContextWindowMode),
                   permission_mode: mapSessionModeToPermissionMode(sessionMode),
+                  enable_mcp: useSettingsStore.getState().enableMcpServers,
                 });
 
                 setSessionMeta({

@@ -25,6 +25,8 @@ export interface StartSessionParams {
    *  "acceptEdits" | "default" | "plan" | "bypassPermissions"
    *  When not "bypassPermissions", enables structured permission requests via SDK protocol. */
   permission_mode?: string;
+  /** Whether to load MCP servers configured by CC Switch / Claude Code. */
+  enable_mcp?: boolean;
 }
 
 export interface SessionInfo {

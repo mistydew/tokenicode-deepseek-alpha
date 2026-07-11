@@ -1159,11 +1159,14 @@ async fn start_claude_session(
         "--verbose".to_string(),
         "--include-partial-messages".to_string(),
         "--replay-user-messages".to_string(),
-        // Skip global MCP servers from ~/.claude.json to avoid slow cold start.
-        // MCP servers (chrome-devtools, codex, gemini, pencil etc.) add 20-30s startup
-        // overhead as each must initialize before the CLI accepts input.
-        "--strict-mcp-config".to_string(),
     ];
+
+    // CC Switch manages MCP servers in the same Claude configuration file read by
+    // Claude Code. Keep them available by default; users with many slow servers can
+    // opt out in TOKENICODE settings and regain the faster strict-config startup.
+    if !params.enable_mcp.unwrap_or(true) {
+        args.push("--strict-mcp-config".to_string());
+    }
 
     // Resume an existing CLI session if requested
     if let Some(ref resume_id) = params.resume_session_id {

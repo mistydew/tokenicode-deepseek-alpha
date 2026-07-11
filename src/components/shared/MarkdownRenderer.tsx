@@ -203,8 +203,10 @@ const SANITIZE_SCHEMA = {
 type RemarkPlugin = any;
 
 const EMPTY_REMARK_PLUGINS: RemarkPlugin[] = [];
-let cachedRemarkPlugins: RemarkPlugin[] | null = null;
-let remarkPluginsPromise: Promise<RemarkPlugin[]> | null = null;
+let cachedBaseRemarkPlugins: RemarkPlugin[] | null = null;
+let cachedMathRemarkPlugins: RemarkPlugin[] | null = null;
+let baseRemarkPluginsPromise: Promise<RemarkPlugin[]> | null = null;
+let mathRemarkPluginsPromise: Promise<RemarkPlugin[]> | null = null;
 let warnedAboutGfmFallback = false;
 
 function supportsRemarkGfmRegex(): boolean {
@@ -222,39 +224,83 @@ function supportsRemarkGfmRegex(): boolean {
   }
 }
 
-async function loadRemarkPlugins(): Promise<RemarkPlugin[]> {
-  if (cachedRemarkPlugins) return cachedRemarkPlugins;
+async function loadBaseRemarkPlugins(): Promise<RemarkPlugin[]> {
+  if (cachedBaseRemarkPlugins) return cachedBaseRemarkPlugins;
 
   if (!supportsRemarkGfmRegex()) {
     if (!warnedAboutGfmFallback) {
       warnedAboutGfmFallback = true;
       console.warn('[TOKENICODE] remark-gfm disabled: current JS runtime does not support its regex syntax');
     }
-    cachedRemarkPlugins = EMPTY_REMARK_PLUGINS;
-    return cachedRemarkPlugins;
+    cachedBaseRemarkPlugins = EMPTY_REMARK_PLUGINS;
+    return cachedBaseRemarkPlugins;
   }
 
-  if (!remarkPluginsPromise) {
-    remarkPluginsPromise = Promise.all([
+  if (!baseRemarkPluginsPromise) {
+    baseRemarkPluginsPromise = Promise.all([
       import('remark-gfm'),
       import('remark-cjk-friendly'),
     ])
       .then(([gfmMod, cjkMod]) => {
-        cachedRemarkPlugins = [gfmMod.default, cjkMod.default];
-        return cachedRemarkPlugins;
+        cachedBaseRemarkPlugins = [gfmMod.default, cjkMod.default];
+        return cachedBaseRemarkPlugins;
       })
       .catch((error) => {
         console.warn('[TOKENICODE] failed to load remark plugins, falling back to basic markdown', error);
-        cachedRemarkPlugins = EMPTY_REMARK_PLUGINS;
-        return cachedRemarkPlugins;
+        cachedBaseRemarkPlugins = EMPTY_REMARK_PLUGINS;
+        return cachedBaseRemarkPlugins;
       });
   }
 
-  return remarkPluginsPromise;
+  return baseRemarkPluginsPromise;
+}
+
+async function loadRemarkPlugins(includeMath: boolean): Promise<RemarkPlugin[]> {
+  if (!includeMath) return loadBaseRemarkPlugins();
+  if (cachedMathRemarkPlugins) return cachedMathRemarkPlugins;
+
+  if (!mathRemarkPluginsPromise) {
+    mathRemarkPluginsPromise = Promise.all([
+      loadBaseRemarkPlugins(),
+      import('remark-math'),
+    ]).then(([basePlugins, mathMod]) => {
+      cachedMathRemarkPlugins = [mathMod.default, ...basePlugins];
+      return cachedMathRemarkPlugins;
+    });
+  }
+
+  return mathRemarkPluginsPromise;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const REHYPE_PLUGINS: any[] = [rehypeRaw, [rehypeSanitize, SANITIZE_SCHEMA], rehypeHighlight];
+const BASE_REHYPE_PLUGINS: any[] = [rehypeRaw, [rehypeSanitize, SANITIZE_SCHEMA], rehypeHighlight];
+let mathRehypePlugins: any[] | null = null;
+let mathRehypePluginsPromise: Promise<any[]> | null = null;
+
+async function loadRehypePlugins(includeMath: boolean): Promise<any[]> {
+  if (!includeMath) return BASE_REHYPE_PLUGINS;
+  if (mathRehypePlugins) return mathRehypePlugins;
+
+  if (!mathRehypePluginsPromise) {
+    mathRehypePluginsPromise = Promise.all([
+      import('rehype-katex'),
+      import('katex/dist/katex.min.css'),
+    ]).then(([katexMod]) => {
+      // Sanitize user Markdown before KaTeX generates its own trusted HTML.
+      mathRehypePlugins = [
+        rehypeRaw,
+        [rehypeSanitize, SANITIZE_SCHEMA],
+        katexMod.default,
+        rehypeHighlight,
+      ];
+      return mathRehypePlugins;
+    });
+  }
+
+  return mathRehypePluginsPromise;
+}
+
+const MATH_SYNTAX_RE = /(^|[^\\])(?:\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/m;
 
 /** Error boundary scoped to a single markdown block.
  *  A malformed message (e.g. truncated table from rate-limit) crashes only
@@ -289,20 +335,26 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
   const t = useT();
   const workingDirectory = useSettingsStore((s) => s.workingDirectory);
   const resolveBase = basePath || workingDirectory || '';
-  const [remarkPlugins, setRemarkPlugins] = useState<RemarkPlugin[]>(() => cachedRemarkPlugins ?? EMPTY_REMARK_PLUGINS);
+  const containsMath = useMemo(() => MATH_SYNTAX_RE.test(content), [content]);
+  const [remarkPlugins, setRemarkPlugins] = useState<RemarkPlugin[]>(EMPTY_REMARK_PLUGINS);
+  const [rehypePlugins, setRehypePlugins] = useState<any[]>(BASE_REHYPE_PLUGINS);
 
   useEffect(() => {
-    if (cachedRemarkPlugins !== null) return;
-
     let cancelled = false;
-    loadRemarkPlugins().then((plugins) => {
-      if (!cancelled) setRemarkPlugins(plugins);
+    Promise.all([
+      loadRemarkPlugins(containsMath),
+      loadRehypePlugins(containsMath),
+    ]).then(([nextRemarkPlugins, nextRehypePlugins]) => {
+      if (!cancelled) {
+        setRemarkPlugins(nextRemarkPlugins);
+        setRehypePlugins(nextRehypePlugins);
+      }
     });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [containsMath]);
 
   // Pre-process: wrap bare file paths in backticks so `code` handler makes them clickable
   const processedContent = useMemo(() => wrapBareFilePaths(content), [content]);
@@ -477,7 +529,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
       <MarkdownErrorBoundary fallback={content}>
         <Markdown
           remarkPlugins={remarkPlugins}
-          rehypePlugins={REHYPE_PLUGINS}
+          rehypePlugins={rehypePlugins}
           components={components}
         >
           {processedContent}
