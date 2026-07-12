@@ -268,7 +268,7 @@ export function SkillsPanel() {
   const totalCount = filteredSkills.length;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2
         border-b border-border-subtle">
@@ -329,7 +329,8 @@ export function SkillsPanel() {
       </div>
 
       {translationConfigOpen && (
-        <div className="px-2 py-2 border-b border-border-subtle bg-bg-secondary/30">
+        <div className="max-h-[55vh] overflow-y-auto overscroll-contain
+          px-2 py-2 border-b border-border-subtle bg-bg-secondary/30">
           <div className="mb-2 text-[10px] text-text-tertiary leading-relaxed">
             技能翻译 API 独立配置。DeepSeek/CC Switch 的接口地址填在 Base URL，Proxy URL 仅用于网络代理。
           </div>
@@ -447,7 +448,7 @@ export function SkillsPanel() {
       </div>
 
       {/* Skills list */}
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="flex-1 min-h-0 overflow-y-auto py-1">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <div className="w-5 h-5 border-2 border-accent/30

@@ -467,6 +467,9 @@ input, textarea, [contenteditable="true"],
    Prose / Typography overrides — map to theme CSS vars
    ================================================================ */
 .prose {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   --tw-prose-body: var(--color-text-primary);
   --tw-prose-headings: var(--color-text-primary);
   --tw-prose-lead: var(--color-text-muted);
@@ -483,6 +486,13 @@ input, textarea, [contenteditable="true"],
   --tw-prose-pre-bg: var(--color-bg-secondary);
   --tw-prose-th-borders: var(--color-border);
   --tw-prose-td-borders: var(--color-border-subtle);
+}
+
+/* Keep normal model text inside the message column, including long URLs and
+   uninterrupted identifiers. Fenced code keeps its intentional scrollbar. */
+.prose :where(pre, pre code):not(:where([class~="not-prose"],[class~="not-prose"] *)) {
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 /* Ensure prose does not add extra margins that clash with our layout */

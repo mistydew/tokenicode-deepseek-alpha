@@ -2,6 +2,11 @@
 
 ## 更新记录
 
+### v0.10.16-alpha.1
+
+- 修复模型输出中的超长 URL、连续英文和无空格文本超出消息区域的问题；普通正文会自动换行，代码块仍保留横向滚动。
+- 技能翻译配置区新增独立纵向滚动条，在小窗口或内容较多时可以滑动查看完整配置与下方功能。
+
 ### v0.10.15-alpha.1
 
 - 选择项目文件夹后，会自动显示同目录下由终端 Claude Code 创建的历史会话，不再只显示 TOKENICODE 自己追踪的会话。
@@ -188,11 +193,11 @@
 
 请到 GitHub Releases 下载最新版本：
 
-- Windows x64 便携版：`tokenicode-deepseek-alpha-v0.10.15-alpha.1-windows-x64.exe`
-- Windows x64 安装版：`tokenicode-deepseek-alpha-v0.10.15-alpha.1-windows-x64-setup.exe`
-- Windows x64 MSI：`tokenicode-deepseek-alpha-v0.10.15-alpha.1-windows-x64.msi`
-- macOS Apple Silicon：`tokenicode-deepseek-alpha-v0.10.15-alpha.1-macos-apple-silicon-0.10.15_aarch64.dmg`
-- macOS Intel：`tokenicode-deepseek-alpha-v0.10.15-alpha.1-macos-intel-0.10.15_x64.dmg`
+- Windows x64 便携版：`tokenicode-deepseek-alpha-v0.10.16-alpha.1-windows-x64.exe`
+- Windows x64 安装版：`tokenicode-deepseek-alpha-v0.10.16-alpha.1-windows-x64-setup.exe`
+- Windows x64 MSI：`tokenicode-deepseek-alpha-v0.10.16-alpha.1-windows-x64.msi`
+- macOS Apple Silicon：`tokenicode-deepseek-alpha-v0.10.16-alpha.1-macos-apple-silicon-0.10.16_aarch64.dmg`
+- macOS Intel：`tokenicode-deepseek-alpha-v0.10.16-alpha.1-macos-intel-0.10.16_x64.dmg`
 
 每个发行包旁边都有对应的 `.sha256.txt` 校验文件。下载后直接运行即可；首次运行时请按需要配置 CC Switch / DeepSeek API。
 
