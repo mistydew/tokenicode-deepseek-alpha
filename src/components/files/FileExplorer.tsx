@@ -484,7 +484,6 @@ export function FileExplorer() {
   const tree = useFileStore((s) => s.tree);
   const isLoading = useFileStore((s) => s.isLoading);
   const rootPath = useFileStore((s) => s.rootPath);
-  const loadTree = useFileStore((s) => s.loadTree);
   const changedFiles = useFileStore((s) => s.changedFiles);
   const clearChangedFiles = useFileStore((s) => s.clearChangedFiles);
   const workingDirectory = useSettingsStore((s) => s.workingDirectory);
@@ -509,10 +508,6 @@ export function FileExplorer() {
   // New file/folder inline creation state
   const [creatingIn, setCreatingIn] = useState<{ dir: string; type: 'file' | 'folder' } | null>(null);
   const [createName, setCreateName] = useState('');
-
-  useEffect(() => {
-    if (workingDirectory) loadTree(workingDirectory);
-  }, [workingDirectory, loadTree]);
 
   const filteredTree = useMemo(() => {
     if (showHiddenFiles) return tree;

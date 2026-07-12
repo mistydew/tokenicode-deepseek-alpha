@@ -110,8 +110,6 @@ interface SettingsState {
   userDisplayName: string;
   /** Whether to show dotfiles (hidden files) in the file tree */
   showHiddenFiles: boolean;
-  /** Whether new Claude Code sessions load MCP servers from CC Switch / Claude config. */
-  enableMcpServers: boolean;
 
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
@@ -148,7 +146,6 @@ interface SettingsState {
   setUserAvatarUrl: (url: string) => void;
   setUserDisplayName: (name: string) => void;
   toggleHiddenFiles: () => void;
-  setEnableMcpServers: (enabled: boolean) => void;
 }
 
 // --- Theme cycle order ---
@@ -196,7 +193,6 @@ export const useSettingsStore = create<SettingsState>()(
       userAvatarUrl: '',
       userDisplayName: '',
       showHiddenFiles: false,
-      enableMcpServers: true,
 
       toggleTheme: () =>
         set((state) => ({ theme: nextTheme(state.theme) })),
@@ -311,12 +307,10 @@ export const useSettingsStore = create<SettingsState>()(
         set(() => ({ userDisplayName: name.slice(0, 20) })),
       toggleHiddenFiles: () =>
         set((state) => ({ showHiddenFiles: !state.showHiddenFiles })),
-      setEnableMcpServers: (enableMcpServers) =>
-        set(() => ({ enableMcpServers })),
     }),
     {
       name: 'tokenicode-settings',
-      version: 12,
+      version: 11,
       migrate: (persistedState: unknown, version: number) => {
         const persisted = persistedState as Record<string, unknown>;
         if (version === 0) {
@@ -377,9 +371,6 @@ export const useSettingsStore = create<SettingsState>()(
         if (version < 11) {
           const mode = persisted.contextWindowMode === 'large1m' ? 'large1m' : 'default';
           persisted.autoCompactThresholdTokens = defaultAutoCompactThreshold(mode);
-        }
-        if (version < 12) {
-          persisted.enableMcpServers = true;
         }
         return persisted;
       },

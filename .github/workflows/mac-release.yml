@@ -69,7 +69,7 @@ jobs:
           find src-tauri/target/${{ matrix.target }}/release/bundle -type f \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" \) -print0 |
             while IFS= read -r -d '' file; do
               base="$(basename "$file")"
-              ext="${base#TCAlpha_}"
+              ext="${base#*_}"
               cp "$file" "release-assets/tokenicode-deepseek-alpha-${{ inputs.tag }}-macos-${{ matrix.arch }}-${ext}"
             done
           shasum -a 256 release-assets/* > "release-assets/tokenicode-deepseek-alpha-${{ inputs.tag }}-macos-${{ matrix.arch }}.sha256.txt"

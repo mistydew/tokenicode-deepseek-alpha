@@ -1159,14 +1159,11 @@ async fn start_claude_session(
         "--verbose".to_string(),
         "--include-partial-messages".to_string(),
         "--replay-user-messages".to_string(),
+        // Skip global MCP servers from ~/.claude.json to avoid slow cold start.
+        // MCP servers (chrome-devtools, codex, gemini, pencil etc.) add 20-30s startup
+        // overhead as each must initialize before the CLI accepts input.
+        "--strict-mcp-config".to_string(),
     ];
-
-    // CC Switch manages MCP servers in the same Claude configuration file read by
-    // Claude Code. Keep them available by default; users with many slow servers can
-    // opt out in TOKENICODE settings and regain the faster strict-config startup.
-    if !params.enable_mcp.unwrap_or(true) {
-        args.push("--strict-mcp-config".to_string());
-    }
 
     // Resume an existing CLI session if requested
     if let Some(ref resume_id) = params.resume_session_id {
@@ -2086,10 +2083,6 @@ fn cleanup_tracked_sessions() {
 /// Delete a session: remove from tracking file and delete the .jsonl file
 #[tauri::command]
 async fn delete_session(session_id: String, session_path: String) -> Result<(), String> {
-    if !load_tracked_sessions().contains(&session_id) {
-        return Err("External Claude Code sessions are read-only in TOKENICODE".to_string());
-    }
-
     // Remove from tracking file
     let track_path = tracked_sessions_path();
     if track_path.exists() {
@@ -2141,8 +2134,7 @@ async fn list_sessions() -> Result<Vec<Value>, String> {
         return Ok(vec![]);
     }
 
-    // TOKENICODE and terminal Claude Code store compatible JSONL files here.
-    // Track ownership only to keep external sessions read-only, not hidden.
+    // Only show sessions tracked by TOKENICODE
     let tracked = load_tracked_sessions();
 
     let mut sessions = vec![];
@@ -2156,12 +2148,10 @@ async fn list_sessions() -> Result<Vec<Value>, String> {
                             if let Some(name) = path.file_stem() {
                                 let id = name.to_string_lossy().to_string();
 
-                                // desk_* IDs are transient TOKENICODE process keys, never real
-                                // Claude conversation history.
-                                if id.starts_with("desk_") {
+                                // Skip sessions not created by TOKENICODE
+                                if !tracked.contains(&id) {
                                     continue;
                                 }
-                                let is_external = !tracked.contains(&id);
 
                                 // Get file metadata for timestamp
                                 let modified = std::fs::metadata(&path)
@@ -2190,7 +2180,6 @@ async fn list_sessions() -> Result<Vec<Value>, String> {
                                     "projectDir": project_dir,
                                     "modifiedAt": modified,
                                     "preview": preview,
-                                    "isExternal": is_external,
                                 }));
                             }
                         }

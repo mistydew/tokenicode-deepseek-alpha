@@ -1,10 +1,10 @@
 {
-  "productName": "TCAlpha",
+  "productName": "TOKENICODE DeepSeek Alpha",
   "identifier": "com.tinyzhuang.tcalpha",
   "app": {
     "windows": [
       {
-        "title": "TCAlpha",
+        "title": "TOKENICODE DeepSeek Alpha",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
@@ -12,6 +12,15 @@
         "titleBarStyle": "Overlay",
         "hiddenTitle": true
       }
+    ]
+  },
+  "bundle": {
+    "icon": [
+      "../editions/alpha/icons/32x32.png",
+      "../editions/alpha/icons/128x128.png",
+      "../editions/alpha/icons/128x128@2x.png",
+      "../editions/alpha/icons/icon.icns",
+      "../editions/alpha/icons/icon.ico"
     ]
   },
   "plugins": {

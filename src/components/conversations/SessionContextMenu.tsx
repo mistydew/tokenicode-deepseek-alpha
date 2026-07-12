@@ -130,23 +130,20 @@ export function SessionContextMenu({
         </button>
       )}
 
-      {!session.isExternal && (
-        <>
-          <div className="my-1 border-t border-border-subtle" />
-          <button
-            onClick={() => { onClose(); onDelete(session); }}
-            className="w-full flex items-center gap-2.5 px-3 py-1.5
-              text-xs text-red-500 hover:bg-red-500/10 transition-smooth"
-          >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
-              stroke="currentColor" strokeWidth="1.5"
-              strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4m2 0v9.333a1.333 1.333 0 01-1.334 1.334H4.667a1.333 1.333 0 01-1.334-1.334V4h9.334z" />
-            </svg>
-            {t('conv.delete')}
-          </button>
-        </>
-      )}
+      <div className="my-1 border-t border-border-subtle" />
+
+      <button
+        onClick={() => { onClose(); onDelete(session); }}
+        className="w-full flex items-center gap-2.5 px-3 py-1.5
+          text-xs text-red-500 hover:bg-red-500/10 transition-smooth"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
+          stroke="currentColor" strokeWidth="1.5"
+          strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 4h12M5.333 4V2.667a1.333 1.333 0 011.334-1.334h2.666a1.333 1.333 0 011.334 1.334V4m2 0v9.333a1.333 1.333 0 01-1.334 1.334H4.667a1.333 1.333 0 01-1.334-1.334V4h9.334z" />
+        </svg>
+        {t('conv.delete')}
+      </button>
     </div>,
     document.body,
   );

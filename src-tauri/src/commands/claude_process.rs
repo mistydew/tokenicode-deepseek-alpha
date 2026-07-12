@@ -166,6 +166,4 @@ pub struct StartSessionParams {
     /// When not "bypassPermissions", enables --permission-prompt-tool stdio for structured
     /// permission requests via the SDK control protocol.
     pub permission_mode: Option<String>,
-    /// Whether to load MCP servers from the user's CC Switch / Claude configuration.
-    pub enable_mcp: Option<bool>,
 }

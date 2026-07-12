@@ -1027,7 +1027,6 @@ async function startDraftSession(folderPath: string) {
     const sessionMode = useSettingsStore.getState().sessionMode;
     const thinkingSetting = useSettingsStore.getState().thinkingLevel;
     const contextWindowMode = useSettingsStore.getState().contextWindowMode;
-    const enableMcpServers = useSettingsStore.getState().enableMcpServers;
     const providerId = useProviderStore.getState().activeProviderId || null;
     const resolvedModel = resolveModelForProvider(selectedModel);
     const session = await bridge.startSession({
@@ -1042,7 +1041,6 @@ async function startDraftSession(folderPath: string) {
       provider_id: providerId || undefined,
       context_window: getContextWindowForModel(resolvedModel, contextWindowMode),
       permission_mode: mapSessionModeToPermissionMode(sessionMode),
-      enable_mcp: enableMcpServers,
     });
 
     // Store stdinId so InputBar can send the first message via stdin

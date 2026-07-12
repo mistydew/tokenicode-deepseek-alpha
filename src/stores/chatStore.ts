@@ -88,9 +88,9 @@ export interface SessionMeta {
   stdinId?: string;
   /** Message ID of a pending processing card (for CLI slash commands) */
   pendingCommandMsgId?: string;
-  /** Latest input/context token snapshot reported by the CLI for this session. */
+  /** Accumulated input tokens from stream events (message_start) — per turn, reset each turn */
   inputTokens?: number;
-  /** Latest output token count for the current/last assistant response. */
+  /** Accumulated output tokens from stream events (message_delta) — per turn, reset each turn */
   outputTokens?: number;
   /** Cumulative input tokens across ALL turns in this session/task */
   totalInputTokens?: number;

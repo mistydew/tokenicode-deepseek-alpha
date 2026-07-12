@@ -821,7 +821,8 @@ export function InputBar() {
     setSessionMeta(tabId, {
       turnStartTime: turnStartedAt,
       lastProgressAt: turnStartedAt,
-      ...(!existingStdinId ? { inputTokens: 0, outputTokens: 0 } : {}),
+      inputTokens: 0,
+      outputTokens: 0,
     });
     useChatStore.getState().setActivityStatus(tabId, { phase: 'thinking' });
     lastStderrRef.current = ''; // Clear stale stderr before new turn
@@ -1121,7 +1122,6 @@ export function InputBar() {
         const liveSessionMode = useSettingsStore.getState().sessionMode;
         const liveThinkingSetting = useSettingsStore.getState().thinkingLevel;
         const liveContextWindowMode = useSettingsStore.getState().contextWindowMode;
-        const liveEnableMcpServers = useSettingsStore.getState().enableMcpServers;
         const liveThinkingLevel = resolveThinkingLevelForProvider(selectedModel, liveThinkingSetting);
         const liveProviderId = useProviderStore.getState().activeProviderId || null;
         const liveResolvedModel = resolveModelForProvider(selectedModel);
@@ -1138,7 +1138,6 @@ export function InputBar() {
           provider_id: liveProviderId || undefined,
           context_window: liveContextWindow,
           permission_mode: mapSessionModeToPermissionMode(liveSessionMode),
-          enable_mcp: liveEnableMcpServers,
         });
         console.log('[TOKENICODE:session] started successfully', { sessionId: session.session_id, pid: session.pid, cli: session.cli_path });
 

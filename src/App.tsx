@@ -1,9 +1,12 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppShell } from './components/layout/AppShell';
 import { Sidebar } from './components/layout/Sidebar';
 import { ChatPanel } from './components/chat/ChatPanel';
+import { SecondaryPanel } from './components/layout/SecondaryPanel';
 import { CommandPalette } from './components/commands/CommandPalette';
+import { SettingsPanel } from './components/settings/SettingsPanel';
 import { ImageLightbox } from './components/shared/ImageLightbox';
+import { ChangelogModal } from './components/shared/ChangelogModal';
 import { Toast } from './components/shared/Toast';
 import { useSettingsStore } from './stores/settingsStore';
 import { useProviderStore } from './stores/providerStore';
@@ -17,13 +20,6 @@ import { bridge, onFileChange } from './lib/tauri-bridge';
 import { useT } from './lib/i18n';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import './App.css';
-
-const SecondaryPanel = lazy(() => import('./components/layout/SecondaryPanel')
-  .then((module) => ({ default: module.SecondaryPanel })));
-const SettingsPanel = lazy(() => import('./components/settings/SettingsPanel')
-  .then((module) => ({ default: module.SettingsPanel })));
-const ChangelogModal = lazy(() => import('./components/shared/ChangelogModal')
-  .then((module) => ({ default: module.ChangelogModal })));
 
 /** Accent colors per theme for the slash in the icon */
 const THEME_ACCENT_COLORS: Record<ColorTheme, string> = {
@@ -81,11 +77,11 @@ function App() {
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const monoFontFollowsInterface = useSettingsStore((s) => s.monoFontFollowsInterface);
   const settingsOpen = useSettingsStore((s) => s.settingsOpen);
-  const secondaryPanelOpen = useSettingsStore((s) => s.secondaryPanelOpen);
   const workingDirectory = useSettingsStore((s) => s.workingDirectory);
   const lastSeenVersion = useSettingsStore((s) => s.lastSeenVersion);
   const setLastSeenVersion = useSettingsStore((s) => s.setLastSeenVersion);
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
+  const loadTree = useFileStore((s) => s.loadTree);
   const refreshTree = useFileStore((s) => s.refreshTree);
   const markFileChanged = useFileStore((s) => s.markFileChanged);
   const prevDirRef = useRef<string | null>(null);
@@ -342,8 +338,7 @@ function App() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // Start the watcher. The full tree is loaded lazily when the Files panel is
-  // opened, avoiding an eight-level scan during startup.
+  // Load file tree + start watcher when working directory changes
   useEffect(() => {
     if (!workingDirectory) return;
 
@@ -353,6 +348,8 @@ function App() {
     }
     prevDirRef.current = workingDirectory;
 
+    // Load tree and start watching
+    loadTree(workingDirectory);
     bridge.watchDirectory(workingDirectory).catch(console.error);
 
     return () => {
@@ -379,8 +376,6 @@ function App() {
       // When files are created or removed, the tree structure changes —
       // debounce a full tree reload (300ms to batch rapid changes)
       if (event.kind === 'created' || event.kind === 'removed') {
-        const settings = useSettingsStore.getState();
-        if (!settings.secondaryPanelOpen || settings.secondaryPanelTab !== 'files') return;
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
         refreshTimerRef.current = setTimeout(() => {
           refreshTree();
@@ -399,29 +394,19 @@ function App() {
       <AppShell
         sidebar={<Sidebar />}
         main={<ChatPanel key={selectedSessionId || 'new'} />}
-        secondary={secondaryPanelOpen ? (
-          <Suspense fallback={<div className="h-full bg-bg-sidebar" />}>
-            <SecondaryPanel />
-          </Suspense>
-        ) : undefined}
+        secondary={<SecondaryPanel />}
       />
       <CommandPalette />
-      {settingsOpen && (
-        <Suspense fallback={null}>
-          <SettingsPanel />
-        </Suspense>
-      )}
+      {settingsOpen && <SettingsPanel />}
       <ImageLightbox />
       {showChangelog && currentAppVersion && (
-        <Suspense fallback={null}>
-          <ChangelogModal
-            version={currentAppVersion}
-            onClose={() => {
-              setShowChangelog(false);
-              setLastSeenVersion(currentAppVersion);
-            }}
-          />
-        </Suspense>
+        <ChangelogModal
+          version={currentAppVersion}
+          onClose={() => {
+            setShowChangelog(false);
+            setLastSeenVersion(currentAppVersion);
+          }}
+        />
       )}
       {showPermDialog && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">

@@ -2,43 +2,10 @@
 
 ## 更新记录
 
-### v0.10.17-alpha.1
+### v1.0.1
 
-- 恢复左侧顶部的可点击应用头像；Alpha 版也可以打开个人资料和贡献热力图。
-- Alpha 发行包恢复使用 TOKENICODE 的暖色应用图标，不再覆盖为旧的 TCAlpha 彩虹图标。
-
-### v0.10.16-alpha.1
-
-- 修复模型输出中的超长 URL、连续英文和无空格文本超出消息区域的问题；普通正文会自动换行，代码块仍保留横向滚动。
-- 技能翻译配置区新增独立纵向滚动条，在小窗口或内容较多时可以滑动查看完整配置与下方功能。
-
-### v0.10.15-alpha.1
-
-- 选择项目文件夹后，会自动显示同目录下由终端 Claude Code 创建的历史会话，不再只显示 TOKENICODE 自己追踪的会话。
-- 外部终端会话会标记为 `CLI`，可以加载并继续对话；为避免误删原始终端历史，外部会话在 TOKENICODE 内为只读历史，删除入口会隐藏且后端会拒绝删除。
-
-### v0.10.14-alpha.1
-
-- 对话和 Markdown 文件预览支持 LaTeX：行内公式使用 `$...$`，独立公式使用 `$$...$$`，仅在消息包含公式时按需加载 KaTeX。
-- 修复 MCP 实际未加载的问题：TOKENICODE 不再默认用 `--strict-mcp-config` 屏蔽 CC Switch / Claude Code 写入的全局 MCP。
-- MCP 设置页新增“在新对话中加载 MCP”开关；默认开启，需要更快冷启动时可关闭，切换后从新会话开始生效。
-
-### v0.10.13-alpha.1
-
-- 优化应用启动与首屏加载：设置、文件预览、Skills、插件和网页 Preview 等低频界面改为按需加载，不再全部塞进启动包。
-- 文件预览使用的 CodeMirror 与多语言解析器只在真正打开文件时加载，降低启动阶段的 JavaScript 解析开销。
-- 项目文件树改为打开“文件”面板时再递归扫描，启动时只建立目录监听，减少大型项目或文件较多目录下的等待和卡顿。
-- 文件面板关闭时不再为工具写入和目录变化反复重扫整棵文件树；重新打开面板后会自动读取最新目录状态。
-- 修复 1M 上下文模式下可用上下文显示异常的问题：新一轮发送时不再把上下文计数直接清零，避免出现“突然 100% free / 归零”的错觉。
-- 修正 token 统计语义：`message_start` / `message_delta` 上报的是当前轮 usage 快照，不再当成增量反复累加。
-- 可用上下文条现在使用最新 CLI usage 快照估算，累计 token 统计改由最终 `result.usage` 追加，避免 live context meter 和累计用量互相污染。
-
-### v0.10.12-alpha.1 发布补充
-
-- Release 已补齐 macOS 下载包：提供 Apple Silicon `aarch64` 和 Intel `x64` 两个 `.dmg`。
-- 新增 GitHub Actions `Mac Release` 工作流，以后可以直接在 GitHub 上按 tag 构建并上传 macOS 发行包。
-- macOS 发行包同时上传 SHA256 校验文件，方便用户核对下载完整性。
-- 由于当前仓库还没有配置 Tauri updater 签名私钥，macOS workflow 只生成普通 Release 下载包，不生成自动更新签名包。
+- 以 `v0.10.12-alpha.1` 为完整功能与界面基线重新发布；后续 `0.10.13` 至 `0.10.17` 的功能不包含在此版本中。
+- 产品和发行名称统一为 `TOKENICODE DeepSeek Alpha v1.0.1`。
 
 ### v0.10.12-alpha.1
 
@@ -192,23 +159,23 @@
 | 主题 | 以原有浅/深色和背景为主 | 新增 VS Code Dark、纯白简约等更偏工作流的界面风格 |
 | 字体 | 字体跟随范围有限，部分小标签仍固定等宽 | 增加字体选择，并让小标签/路径/模型名等区域默认跟随界面字体 |
 | 新对话目录 | 新建对话时容易回到重新选文件夹流程 | 记住上次项目目录，新任务直接进入默认文件夹，并可在输入框下方快速切换 |
-| 发布包 | 需要自行构建或使用原项目发布 | Release 提供 Windows x64 exe、macOS Apple Silicon / Intel dmg 和 SHA256 校验文件 |
+| 发布包 | 需要自行构建或使用原项目发布 | Release 提供 Windows x64 exe / zip 和 SHA256 校验文件 |
 
 ## 下载
 
-请到 GitHub Releases 下载最新版本：
+请到 GitHub Releases 下载对应系统的安装包：
 
-- Windows x64 便携版：`tokenicode-deepseek-alpha-v0.10.17-alpha.1-windows-x64.exe`
-- Windows x64 安装版：`tokenicode-deepseek-alpha-v0.10.17-alpha.1-windows-x64-setup.exe`
-- Windows x64 MSI：`tokenicode-deepseek-alpha-v0.10.17-alpha.1-windows-x64.msi`
-- macOS Apple Silicon：`tokenicode-deepseek-alpha-v0.10.17-alpha.1-macos-apple-silicon-0.10.17_aarch64.dmg`
-- macOS Intel：`tokenicode-deepseek-alpha-v0.10.17-alpha.1-macos-intel-0.10.17_x64.dmg`
+- Windows x64 便携版：`tokenicode-deepseek-alpha-v1.0.1-windows-x64.exe`
+- Windows x64 安装版：`tokenicode-deepseek-alpha-v1.0.1-windows-x64-setup.exe`
+- Windows x64 MSI：`tokenicode-deepseek-alpha-v1.0.1-windows-x64.msi`
+- macOS Apple Silicon：`tokenicode-deepseek-alpha-v1.0.1-macos-apple-silicon-1.0.1_aarch64.dmg`
+- macOS Intel：`tokenicode-deepseek-alpha-v1.0.1-macos-intel-1.0.1_x64.dmg`
 
-每个发行包旁边都有对应的 `.sha256.txt` 校验文件。下载后直接运行即可；首次运行时请按需要配置 CC Switch / DeepSeek API。
+下载后双击运行即可。首次运行时请按需要配置 CC Switch / DeepSeek API。
 
 ## 快速开始
 
-1. 从 release 下载对应系统的安装包。
+1. 下载 release 里的 Windows exe。
 2. 打开 TOKENICODE。
 3. 在设置里配置 API Provider，或在 Skills 面板里单独配置翻译 API。
 4. 选择项目文件夹，开始对话。

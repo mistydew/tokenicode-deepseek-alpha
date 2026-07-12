@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useMcpStore } from '../../stores/mcpStore';
 import type { DiscoveredMcpServer, McpServer, McpServerConfig } from '../../stores/mcpStore';
-import { useSettingsStore } from '../../stores/settingsStore';
 import { useT } from '../../lib/i18n';
 
 export function McpTab() {
@@ -21,8 +20,6 @@ export function McpTab() {
   const isAdding = useMcpStore((s) => s.isAdding);
   const setEditing = useMcpStore((s) => s.setEditing);
   const setAdding = useMcpStore((s) => s.setAdding);
-  const enableMcpServers = useSettingsStore((s) => s.enableMcpServers);
-  const setEnableMcpServers = useSettingsStore((s) => s.setEnableMcpServers);
 
   useEffect(() => {
     fetchServers();
@@ -95,29 +92,6 @@ export function McpTab() {
       </div>
 
       {/* Content — always expanded */}
-      <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg
-        border border-border-subtle bg-bg-secondary/40">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-text-primary">{t('mcp.loadInChat')}</p>
-          <p className="mt-0.5 text-[11px] text-text-tertiary leading-relaxed">
-            {t('mcp.loadInChatHint')}
-          </p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enableMcpServers}
-          onClick={() => setEnableMcpServers(!enableMcpServers)}
-          className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-smooth
-            ${enableMcpServers ? 'bg-accent' : 'bg-bg-tertiary border border-border-subtle'}`}
-          title={enableMcpServers ? t('mcp.loadEnabled') : t('mcp.loadDisabled')}
-        >
-          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform
-            ${enableMcpServers ? 'translate-x-4' : 'translate-x-0.5'}`}
-          />
-        </button>
-      </div>
-
       {scanMessage && (
         <p className="text-xs text-text-tertiary">{scanMessage}</p>
       )}

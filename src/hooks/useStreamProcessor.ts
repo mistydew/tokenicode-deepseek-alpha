@@ -162,8 +162,6 @@ const FILE_MUTATING_TOOLS = new Set([
 let _fileRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 function _scheduleFileTreeRefresh() {
-  const settings = useSettingsStore.getState();
-  if (!settings.secondaryPanelOpen || settings.secondaryPanelTab !== 'files') return;
   if (_fileRefreshTimer) return; // already scheduled
   _fileRefreshTimer = setTimeout(() => {
     _fileRefreshTimer = null;
@@ -379,17 +377,21 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
             store.setActivityStatus(tabId, { phase: 'awaiting' });
           }
         }
-        // Track the latest context snapshot for background sessions.
-        // Claude Code reports usage values as current-turn totals, not deltas.
-        if (evt.type === 'message_start' && typeof evt.message?.usage?.input_tokens === 'number') {
+        // Track tokens in background sessions (per-turn + cumulative total)
+        if (evt.type === 'message_start' && evt.message?.usage?.input_tokens) {
+          const bgTab = store.getTab(tabId);
+          const delta = evt.message.usage.input_tokens;
           store.setSessionMeta(tabId, {
-            inputTokens: evt.message.usage.input_tokens,
-            outputTokens: 0,
+            inputTokens: (bgTab?.sessionMeta.inputTokens || 0) + delta,
+            totalInputTokens: (bgTab?.sessionMeta.totalInputTokens || 0) + delta,
           });
         }
-        if (evt.type === 'message_delta' && typeof evt.usage?.output_tokens === 'number') {
+        if (evt.type === 'message_delta' && evt.usage?.output_tokens) {
+          const bgTab = store.getTab(tabId);
+          const delta = evt.usage.output_tokens;
           store.setSessionMeta(tabId, {
-            outputTokens: evt.usage.output_tokens,
+            outputTokens: (bgTab?.sessionMeta.outputTokens || 0) + delta,
+            totalOutputTokens: (bgTab?.sessionMeta.totalOutputTokens || 0) + delta,
           });
         }
         break;
@@ -559,20 +561,18 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
         {
           const bgTab = store.getTab(tabId);
           const prevMeta = bgTab?.sessionMeta;
-          const resultInput = typeof msg.usage?.input_tokens === 'number'
-            ? msg.usage.input_tokens
-            : undefined;
-          const resultOutput = typeof msg.usage?.output_tokens === 'number'
-            ? msg.usage.output_tokens
-            : undefined;
+          const resultInput = msg.usage?.input_tokens || 0;
+          const resultOutput = msg.usage?.output_tokens || 0;
+          const streamedInput = prevMeta?.inputTokens || 0;
+          const streamedOutput = prevMeta?.outputTokens || 0;
           store.setSessionMeta(tabId, {
             cost: msg.total_cost_usd,
             duration: msg.duration_ms,
             turns: msg.num_turns,
-            inputTokens: resultInput ?? prevMeta?.inputTokens ?? 0,
-            outputTokens: resultOutput ?? prevMeta?.outputTokens ?? 0,
-            totalInputTokens: (prevMeta?.totalInputTokens || 0) + (resultInput ?? 0),
-            totalOutputTokens: (prevMeta?.totalOutputTokens || 0) + (resultOutput ?? 0),
+            inputTokens: resultInput,
+            outputTokens: resultOutput,
+            totalInputTokens: (prevMeta?.totalInputTokens || 0) + (resultInput - streamedInput),
+            totalOutputTokens: (prevMeta?.totalOutputTokens || 0) + (resultOutput - streamedOutput),
             turnStartTime: undefined,
             lastProgressAt: undefined,
           });
@@ -599,7 +599,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           const bgFlushStdinId = bgDrainTab?.sessionMeta.stdinId;
           if (bgNextMsg && bgFlushStdinId) {
             store.setSessionStatus(tabId, 'running');
-            store.setSessionMeta(tabId, { turnStartTime: Date.now(), lastProgressAt: Date.now() });
+            store.setSessionMeta(tabId, { turnStartTime: Date.now(), lastProgressAt: Date.now(), inputTokens: 0, outputTokens: 0 });
             store.setActivityStatus(tabId, { phase: 'thinking' });
             bridge.sendStdin(bgFlushStdinId, bgNextMsg).catch((err) => {
               console.error('[TC:bg] Failed to send pending message:', err);
@@ -1037,19 +1037,23 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           }
         }
 
-        // Track latest input/context snapshot from message_start.
-        // This is an absolute current-turn usage value, so do not accumulate it.
-        if (evt.type === 'message_start' && typeof evt.message?.usage?.input_tokens === 'number') {
+        // Track input tokens from message_start (per-turn + cumulative total)
+        if (evt.type === 'message_start' && evt.message?.usage?.input_tokens) {
+          const meta = useChatStore.getState().getTab(tabId)?.sessionMeta ?? {};
+          const delta = evt.message.usage.input_tokens;
           setSessionMeta({
-            inputTokens: evt.message.usage.input_tokens,
-            outputTokens: 0,
+            inputTokens: (meta.inputTokens || 0) + delta,
+            totalInputTokens: (meta.totalInputTokens || 0) + delta,
           });
         }
 
-        // Track latest output token count from message_delta.
-        if (evt.type === 'message_delta' && typeof evt.usage?.output_tokens === 'number') {
+        // Track output tokens from message_delta (per-turn + cumulative total)
+        if (evt.type === 'message_delta' && evt.usage?.output_tokens) {
+          const meta = useChatStore.getState().getTab(tabId)?.sessionMeta ?? {};
+          const delta = evt.usage.output_tokens;
           setSessionMeta({
-            outputTokens: evt.usage.output_tokens,
+            outputTokens: (meta.outputTokens || 0) + delta,
+            totalOutputTokens: (meta.totalOutputTokens || 0) + delta,
           });
         }
         break;
@@ -1560,7 +1564,6 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
                   provider_id: useProviderStore.getState().activeProviderId || undefined,
                   context_window: getContextWindowForModel(retryResolvedModel, retryContextWindowMode),
                   permission_mode: mapSessionModeToPermissionMode(sessionMode),
-                  enable_mcp: useSettingsStore.getState().enableMcpServers,
                 });
 
                 setSessionMeta({
@@ -1694,23 +1697,21 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           msg.subtype === 'success' ? 'completed' : 'error'
         );
         {
-          // Add authoritative per-turn usage to cumulative totals.
-          // Streaming usage is only used for the live context meter.
+          // Correct cumulative totals for any drift between streaming
+          // accumulation and the authoritative result values.
           const meta = useChatStore.getState().getTab(tabId)?.sessionMeta ?? {};
-          const resultInput = typeof msg.usage?.input_tokens === 'number'
-            ? msg.usage.input_tokens
-            : undefined;
-          const resultOutput = typeof msg.usage?.output_tokens === 'number'
-            ? msg.usage.output_tokens
-            : undefined;
+          const resultInput = msg.usage?.input_tokens || 0;
+          const resultOutput = msg.usage?.output_tokens || 0;
+          const streamedInput = meta.inputTokens || 0;
+          const streamedOutput = meta.outputTokens || 0;
           setSessionMeta({
             cost: msg.total_cost_usd,
             duration: msg.duration_ms,
             turns: msg.num_turns,
-            inputTokens: resultInput ?? meta.inputTokens ?? 0,
-            outputTokens: resultOutput ?? meta.outputTokens ?? 0,
-            totalInputTokens: (meta.totalInputTokens || 0) + (resultInput ?? 0),
-            totalOutputTokens: (meta.totalOutputTokens || 0) + (resultOutput ?? 0),
+            inputTokens: resultInput,
+            outputTokens: resultOutput,
+            totalInputTokens: (meta.totalInputTokens || 0) + (resultInput - streamedInput),
+            totalOutputTokens: (meta.totalOutputTokens || 0) + (resultOutput - streamedOutput),
             turnStartTime: undefined,
             lastProgressAt: undefined,
           });
@@ -1823,6 +1824,8 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
             setSessionMeta({
               turnStartTime: nextTurnStartedAt,
               lastProgressAt: nextTurnStartedAt,
+              inputTokens: 0,
+              outputTokens: 0,
             });
             setActivityStatus({ phase: 'thinking' });
             agentActions.clearAgents();

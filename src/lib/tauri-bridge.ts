@@ -25,8 +25,6 @@ export interface StartSessionParams {
    *  "acceptEdits" | "default" | "plan" | "bypassPermissions"
    *  When not "bypassPermissions", enables structured permission requests via SDK protocol. */
   permission_mode?: string;
-  /** Whether to load MCP servers configured by CC Switch / Claude Code. */
-  enable_mcp?: boolean;
 }
 
 export interface SessionInfo {
@@ -44,8 +42,6 @@ export interface SessionListItem {
   projectDir: string;
   modifiedAt: number;
   preview: string;
-  /** True when this history was created outside TOKENICODE, e.g. terminal Claude Code. */
-  isExternal?: boolean;
 }
 
 export interface ContentSearchResult {

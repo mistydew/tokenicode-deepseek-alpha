@@ -82,7 +82,6 @@ const messages: Record<Locale, Record<string, string>> = {
     'conv.dAgo': '天前',
     'conv.loadFailed': '加载任务失败',
     'conv.delete': '删除任务',
-    'conv.externalSession': '终端 Claude Code 会话（只读历史，可继续对话）',
     'conv.rename': '重命名',
     'conv.revealInFinder': '在 {fileManager} 中显示',
     'conv.export': '导出',
@@ -608,10 +607,6 @@ const messages: Record<Locale, Record<string, string>> = {
     'mcp.commandPlaceholder': '输入命令，如 npx',
     'mcp.refresh': '刷新',
     'mcp.envCount': '个环境变量',
-    'mcp.loadInChat': '在新对话中加载 MCP',
-    'mcp.loadInChatHint': '读取 CC Switch / Claude Code 的全局 MCP 配置。关闭可减少冷启动等待；切换后新会话生效。',
-    'mcp.loadEnabled': 'MCP 已启用',
-    'mcp.loadDisabled': 'MCP 已关闭',
 
     // CLI Management
     'cli.check': '检查 CLI 状态',
@@ -801,7 +796,6 @@ const messages: Record<Locale, Record<string, string>> = {
     'conv.dAgo': 'd ago',
     'conv.loadFailed': 'Failed to load task',
     'conv.delete': 'Delete',
-    'conv.externalSession': 'Terminal Claude Code session (read-only history, can be continued)',
     'conv.rename': 'Rename',
     'conv.revealInFinder': 'Reveal in {fileManagerEn}',
     'conv.export': 'Export',
@@ -1327,10 +1321,6 @@ const messages: Record<Locale, Record<string, string>> = {
     'mcp.commandPlaceholder': 'Enter command, e.g. npx',
     'mcp.refresh': 'Refresh',
     'mcp.envCount': 'env vars',
-    'mcp.loadInChat': 'Load MCP in new chats',
-    'mcp.loadInChatHint': 'Uses global MCP configuration from CC Switch / Claude Code. Turn it off for faster cold starts; applies to new sessions.',
-    'mcp.loadEnabled': 'MCP enabled',
-    'mcp.loadDisabled': 'MCP disabled',
 
     // CLI Management
     'cli.check': 'Check CLI Status',

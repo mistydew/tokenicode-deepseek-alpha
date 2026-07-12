@@ -1,15 +1,9 @@
-import { lazy, Suspense } from 'react';
 import { useSettingsStore, SecondaryPanelTab } from '../../stores/settingsStore';
+import { FileExplorer } from '../files/FileExplorer';
+import { SkillsPanel } from '../skills/SkillsPanel';
+import { PluginsPanel } from '../plugins/PluginsPanel';
+import { PreviewPanel } from '../preview/PreviewPanel';
 import { useT } from '../../lib/i18n';
-
-const FileExplorer = lazy(() => import('../files/FileExplorer')
-  .then((module) => ({ default: module.FileExplorer })));
-const PreviewPanel = lazy(() => import('../preview/PreviewPanel')
-  .then((module) => ({ default: module.PreviewPanel })));
-const SkillsPanel = lazy(() => import('../skills/SkillsPanel')
-  .then((module) => ({ default: module.SkillsPanel })));
-const PluginsPanel = lazy(() => import('../plugins/PluginsPanel')
-  .then((module) => ({ default: module.PluginsPanel })));
 
 const tabs: { id: SecondaryPanelTab; labelKey: string; icon: string }[] = [
   { id: 'files', labelKey: 'panel.files', icon: 'M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3z' },
@@ -64,12 +58,10 @@ export function SecondaryPanel() {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        <Suspense fallback={<div className="h-full bg-bg-sidebar" />}>
-          {activeTab === 'files' && <FileExplorer />}
-          {activeTab === 'preview' && <PreviewPanel />}
-          {activeTab === 'skills' && <SkillsPanel />}
-          {activeTab === 'plugins' && <PluginsPanel />}
-        </Suspense>
+        {activeTab === 'files' && <FileExplorer />}
+        {activeTab === 'preview' && <PreviewPanel />}
+        {activeTab === 'skills' && <SkillsPanel />}
+        {activeTab === 'plugins' && <PluginsPanel />}
       </div>
     </div>
   );
