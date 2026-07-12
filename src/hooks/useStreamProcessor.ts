@@ -14,6 +14,7 @@ import { bridge, onClaudeStream, onClaudeStderr } from '../lib/tauri-bridge';
 import { envFingerprint, resolveModelForProvider, resolveThinkingLevelForProvider } from '../lib/api-provider';
 import { useProviderStore } from '../stores/providerStore';
 import { t } from '../lib/i18n';
+import { getContextInputTokens, getContextOutputTokens } from '../lib/context-usage';
 
 // --- Error classification for user-facing messages ---
 // Each pattern maps to a friendly i18n key. Matched errors show the friendly
@@ -378,12 +379,14 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           }
         }
         // Track tokens in background sessions (per-turn + cumulative total)
-        if (evt.type === 'message_start' && evt.message?.usage?.input_tokens) {
+        if (evt.type === 'message_start' && evt.message?.usage) {
           const bgTab = store.getTab(tabId);
-          const delta = evt.message.usage.input_tokens;
+          const delta = evt.message.usage.input_tokens || 0;
           store.setSessionMeta(tabId, {
             inputTokens: (bgTab?.sessionMeta.inputTokens || 0) + delta,
             totalInputTokens: (bgTab?.sessionMeta.totalInputTokens || 0) + delta,
+            contextInputTokens: getContextInputTokens(evt.message.usage),
+            contextOutputTokens: 0,
           });
         }
         if (evt.type === 'message_delta' && evt.usage?.output_tokens) {
@@ -392,6 +395,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           store.setSessionMeta(tabId, {
             outputTokens: (bgTab?.sessionMeta.outputTokens || 0) + delta,
             totalOutputTokens: (bgTab?.sessionMeta.totalOutputTokens || 0) + delta,
+            contextOutputTokens: getContextOutputTokens(evt.usage),
           });
         }
         break;
@@ -1038,12 +1042,14 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
         }
 
         // Track input tokens from message_start (per-turn + cumulative total)
-        if (evt.type === 'message_start' && evt.message?.usage?.input_tokens) {
+        if (evt.type === 'message_start' && evt.message?.usage) {
           const meta = useChatStore.getState().getTab(tabId)?.sessionMeta ?? {};
-          const delta = evt.message.usage.input_tokens;
+          const delta = evt.message.usage.input_tokens || 0;
           setSessionMeta({
             inputTokens: (meta.inputTokens || 0) + delta,
             totalInputTokens: (meta.totalInputTokens || 0) + delta,
+            contextInputTokens: getContextInputTokens(evt.message.usage),
+            contextOutputTokens: 0,
           });
         }
 
@@ -1054,6 +1060,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           setSessionMeta({
             outputTokens: (meta.outputTokens || 0) + delta,
             totalOutputTokens: (meta.totalOutputTokens || 0) + delta,
+            contextOutputTokens: getContextOutputTokens(evt.usage),
           });
         }
         break;
@@ -1757,8 +1764,10 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
         // --- Auto-compact: threshold follows the declared context window.
         // Default 200K models compact at 160K; declared 1M models compact at 800K.
         // Fires at most once per session to avoid infinite loops.
-        const resultInputTokens = msg.usage?.input_tokens || 0;
         const compactMeta = useChatStore.getState().getTab(tabId)?.sessionMeta;
+        const currentContextTokens = compactMeta?.contextInputTokens != null
+          ? compactMeta.contextInputTokens + (compactMeta.contextOutputTokens ?? 0)
+          : msg.usage?.input_tokens || 0;
         const compactStdinId = compactMeta?.stdinId;
         const compactModel = compactMeta?.spawnedModel || compactMeta?.snapshotModel || useSettingsStore.getState().selectedModel;
         const compactMode = compactMeta?.snapshotContextWindowMode ?? useSettingsStore.getState().contextWindowMode;
@@ -1767,9 +1776,9 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           compactMode,
           useSettingsStore.getState().autoCompactThresholdTokens,
         );
-        if (resultInputTokens > autoCompactThreshold && !autoCompactFiredRef.current && compactStdinId && msg.subtype === 'success') {
+        if (currentContextTokens > autoCompactThreshold && !autoCompactFiredRef.current && compactStdinId && msg.subtype === 'success') {
           autoCompactFiredRef.current = true;
-          console.log('[TOKENICODE] Auto-compact triggered:', { inputTokens: resultInputTokens, threshold: autoCompactThreshold });
+          console.log('[TOKENICODE] Auto-compact triggered:', { contextTokens: currentContextTokens, threshold: autoCompactThreshold });
           const compactMsgId = generateMessageId();
           addMessage({
             id: compactMsgId,

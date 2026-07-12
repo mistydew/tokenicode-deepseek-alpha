@@ -24,9 +24,9 @@ export function SecondaryPanel() {
     <div className="flex flex-col h-full">
       {/* Tab bar — extra top padding for macOS traffic lights */}
       <div
-        className="flex items-center justify-between px-2 pt-6 pb-2
+        className="flex items-center gap-1 px-2 pt-6 pb-2
         border-b border-border-subtle cursor-default">
-        <div className="flex gap-1 min-w-0 overflow-hidden">
+        <div className="secondary-panel-tabs flex flex-1 gap-1 min-w-0 overflow-x-auto pb-1">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -47,7 +47,7 @@ export function SecondaryPanel() {
           ))}
         </div>
         <button onClick={togglePanel}
-          className="p-1 rounded-lg hover:bg-bg-tertiary
+          className="p-1 rounded-lg hover:bg-bg-tertiary flex-shrink-0
             text-text-tertiary transition-smooth" title={t('panel.close')}>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
             stroke="currentColor" strokeWidth="1.5">

@@ -3,12 +3,16 @@ import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+import rehypeKatex from 'rehype-katex';
+import remarkMath from 'remark-math';
+import 'katex/dist/katex.min.css';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useLightboxStore } from './ImageLightbox';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useFileStore } from '../../stores/fileStore';
 import { bridge } from '../../lib/tauri-bridge';
 import { useT } from '../../lib/i18n';
+import { normalizeLatexDelimiters } from '../../lib/markdown-latex';
 
 /* ================================================================
    AsyncImage — loads local files via Rust base64 bridge
@@ -202,7 +206,7 @@ const SANITIZE_SCHEMA = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RemarkPlugin = any;
 
-const EMPTY_REMARK_PLUGINS: RemarkPlugin[] = [];
+const BASE_REMARK_PLUGINS: RemarkPlugin[] = [remarkMath];
 let cachedRemarkPlugins: RemarkPlugin[] | null = null;
 let remarkPluginsPromise: Promise<RemarkPlugin[]> | null = null;
 let warnedAboutGfmFallback = false;
@@ -230,7 +234,7 @@ async function loadRemarkPlugins(): Promise<RemarkPlugin[]> {
       warnedAboutGfmFallback = true;
       console.warn('[TOKENICODE] remark-gfm disabled: current JS runtime does not support its regex syntax');
     }
-    cachedRemarkPlugins = EMPTY_REMARK_PLUGINS;
+    cachedRemarkPlugins = BASE_REMARK_PLUGINS;
     return cachedRemarkPlugins;
   }
 
@@ -240,12 +244,12 @@ async function loadRemarkPlugins(): Promise<RemarkPlugin[]> {
       import('remark-cjk-friendly'),
     ])
       .then(([gfmMod, cjkMod]) => {
-        cachedRemarkPlugins = [gfmMod.default, cjkMod.default];
+        cachedRemarkPlugins = [remarkMath, gfmMod.default, cjkMod.default];
         return cachedRemarkPlugins;
       })
       .catch((error) => {
         console.warn('[TOKENICODE] failed to load remark plugins, falling back to basic markdown', error);
-        cachedRemarkPlugins = EMPTY_REMARK_PLUGINS;
+        cachedRemarkPlugins = BASE_REMARK_PLUGINS;
         return cachedRemarkPlugins;
       });
   }
@@ -254,7 +258,7 @@ async function loadRemarkPlugins(): Promise<RemarkPlugin[]> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const REHYPE_PLUGINS: any[] = [rehypeRaw, [rehypeSanitize, SANITIZE_SCHEMA], rehypeHighlight];
+const REHYPE_PLUGINS: any[] = [rehypeRaw, [rehypeSanitize, SANITIZE_SCHEMA], rehypeKatex, rehypeHighlight];
 
 /** Error boundary scoped to a single markdown block.
  *  A malformed message (e.g. truncated table from rate-limit) crashes only
@@ -289,7 +293,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
   const t = useT();
   const workingDirectory = useSettingsStore((s) => s.workingDirectory);
   const resolveBase = basePath || workingDirectory || '';
-  const [remarkPlugins, setRemarkPlugins] = useState<RemarkPlugin[]>(() => cachedRemarkPlugins ?? EMPTY_REMARK_PLUGINS);
+  const [remarkPlugins, setRemarkPlugins] = useState<RemarkPlugin[]>(() => cachedRemarkPlugins ?? BASE_REMARK_PLUGINS);
 
   useEffect(() => {
     if (cachedRemarkPlugins !== null) return;
@@ -305,7 +309,10 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
   }, []);
 
   // Pre-process: wrap bare file paths in backticks so `code` handler makes them clickable
-  const processedContent = useMemo(() => wrapBareFilePaths(content), [content]);
+  const processedContent = useMemo(
+    () => wrapBareFilePaths(normalizeLatexDelimiters(content)),
+    [content],
+  );
 
   // Stable components object — only recreated if `t` or resolveBase changes
   const components = useMemo(() => ({

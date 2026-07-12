@@ -236,6 +236,8 @@ function ActivityIndicator({ activityStatus, sessionMeta }: {
     turnStartTime?: number;
     outputTokens?: number;
     inputTokens?: number;
+    contextInputTokens?: number;
+    contextOutputTokens?: number;
     lastProgressAt?: number;
     spawnedModel?: string;
     snapshotModel?: string;
@@ -273,8 +275,10 @@ function ActivityIndicator({ activityStatus, sessionMeta }: {
     resolvedModel,
     sessionMeta.snapshotContextWindowMode ?? contextWindowMode,
   );
-  const inputTokens = sessionMeta.inputTokens || 0;
-  const contextWarning = inputTokens > contextWindow * 0.6;
+  const contextTokens = sessionMeta.contextInputTokens != null
+    ? sessionMeta.contextInputTokens + (sessionMeta.contextOutputTokens ?? 0)
+    : (sessionMeta.inputTokens ?? 0) + (sessionMeta.outputTokens ?? 0);
+  const contextWarning = contextTokens > contextWindow * 0.6;
 
   // Stall detection: 120s of silence (no stream activity), not total elapsed time.
   const stallWarning = !!sessionMeta.lastProgressAt
@@ -330,9 +334,10 @@ function ContextMeter({ sessionMeta, tabId, sessionStatus }: {
   const effectiveContextMode = sessionMeta.snapshotContextWindowMode ?? contextWindowMode;
   const contextWindow = getContextWindowForModel(modelForContext, effectiveContextMode);
   const compactThreshold = getAutoCompactThreshold(modelForContext, effectiveContextMode, autoCompactThresholdTokens);
-  const used = Math.min(contextWindow, Math.max(0,
-    (sessionMeta.inputTokens ?? 0) + (sessionMeta.outputTokens ?? 0),
-  ));
+  const measuredContext = sessionMeta.contextInputTokens != null
+    ? sessionMeta.contextInputTokens + (sessionMeta.contextOutputTokens ?? 0)
+    : (sessionMeta.inputTokens ?? 0) + (sessionMeta.outputTokens ?? 0);
+  const used = Math.min(contextWindow, Math.max(0, measuredContext));
   const available = Math.max(0, contextWindow - used);
   const percent = Math.min(100, Math.round((used / contextWindow) * 100));
   const thresholdPercent = Math.min(100, Math.round((compactThreshold / contextWindow) * 100));
@@ -899,25 +904,6 @@ export function ChatPanel() {
           onJumpTurn={jumpToTurn}
           onJumpBottom={scrollToBottom}
         />
-      )}
-
-      {/* Scroll to bottom FAB */}
-      {showScrollBtn && (
-        <button
-          onClick={scrollToBottom}
-          className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10
-            inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-bg-card border border-border-subtle
-            shadow-md hover:shadow-lg justify-center
-            text-text-muted hover:text-text-primary transition-smooth
-            cursor-pointer opacity-80 hover:opacity-100"
-          title={t('chat.scrollToBottom')}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M7 2v10M3 8l4 4 4-4" />
-          </svg>
-          <span className="text-xs">{t('chat.latest')}</span>
-        </button>
       )}
 
       {/* Directory missing banner */}

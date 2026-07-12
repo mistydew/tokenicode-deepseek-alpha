@@ -2,6 +2,14 @@
 
 ## 更新记录
 
+### v1.0.2
+
+- 修复 200K / 1M 上下文仪表计算：按最近一次模型调用统计普通输入、缓存读取、缓存创建和当前输出，不再因工具调用累计而乱跳或归零。
+- 加载历史对话时恢复最后一次真实上下文占用与模型信息，不再统一显示 100% 可用。
+- 聊天消息新增 KaTeX 数学公式渲染，兼容 `$...$`、`$$...$$`、`\(...\)`、`\[...\]`，并保留完整 Markdown 渲染。
+- 右侧功能面板标签新增横向滑条，窄面板下仍可浏览文件、预览、技能和插件。
+- 移除输入框上方重复的“最新”按钮，保留右侧时间轴的跳转入口。
+
 ### v0.10.12-alpha.1
 
 - 修正上一版对 DeepSeek OpenAI `base_url` 的处理：官网写法 `https://api.deepseek.com` 会请求 `/chat/completions`，不再强行补 `/v1`。
@@ -139,6 +147,11 @@
   - 会话历史、归档、置顶、导出、AI 标题生成
   - 支持计划模式、权限模式、回退和文件恢复
 
+- **长对话与数学公式**
+  - 200K / 1M 上下文仪表包含缓存 Token，并在历史会话恢复时显示真实占用
+  - 支持 Markdown 与 KaTeX 行内/块级公式，分式、积分、上下标和矩阵可直接排版
+  - 右侧轮次时间线可快速跳转历史轮次并返回最新消息
+
 ## 相比原版 TOKENICODE 多了什么
 
 这个仓库不是简单改名版，而是围绕 DeepSeek、CC Switch 和 Codex skills 工作流做了一组定向魔改：
@@ -158,9 +171,10 @@
 
 ## 下载
 
-请到 GitHub Releases 下载 Windows 便携版：
+请到 [GitHub Releases](https://github.com/mistydew/tokenicode-deepseek-alpha/releases/latest) 下载 Windows 便携版：
 
 - `tokenicode-deepseek-alpha-windows-x64.exe`
+- `tokenicode-deepseek-alpha-windows-x64-setup.exe`（Windows x64 安装版）
 
 下载后双击运行即可。首次运行时请按需要配置 CC Switch / DeepSeek API。
 

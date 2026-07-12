@@ -1,6 +1,7 @@
 import type { ChatMessage } from '../stores/chatStore';
 import { generateMessageId } from '../stores/chatStore';
 import type { AgentPhase } from '../stores/agentStore';
+import { getContextInputTokens, getContextOutputTokens } from './context-usage';
 
 export interface AgentData {
   id: string;
@@ -16,6 +17,9 @@ export interface LoadedSession {
   messages: ChatMessage[];
   agents: AgentData[];
   mainAgentStartTime: number;
+  contextInputTokens?: number;
+  contextOutputTokens?: number;
+  model?: string;
 }
 
 /** Detect system-injected content that should not be shown to users */
@@ -35,6 +39,9 @@ function isSystemText(text: string): boolean {
 export function parseSessionMessages(rawMessages: any[]): LoadedSession {
   const messages: ChatMessage[] = [];
   const agents: AgentData[] = [];
+  let contextInputTokens: number | undefined;
+  let contextOutputTokens: number | undefined;
+  let model: string | undefined;
 
   // Create main agent with session start time
   const firstMsg = rawMessages[0];
@@ -56,6 +63,12 @@ export function parseSessionMessages(rawMessages: any[]): LoadedSession {
   const toolUseIdToIndex = new Map<string, number>();
 
   for (const msg of rawMessages) {
+    if (msg.type === 'assistant' && msg.message?.usage) {
+      contextInputTokens = getContextInputTokens(msg.message.usage);
+      contextOutputTokens = getContextOutputTokens(msg.message.usage);
+      model = msg.message.model || model;
+    }
+
     // Skip system-injected meta messages
     if (msg.isMeta) continue;
 
@@ -211,5 +224,12 @@ export function parseSessionMessages(rawMessages: any[]): LoadedSession {
     }
   }
 
-  return { messages, agents, mainAgentStartTime: sessionStartTime };
+  return {
+    messages,
+    agents,
+    mainAgentStartTime: sessionStartTime,
+    contextInputTokens,
+    contextOutputTokens,
+    model,
+  };
 }
