@@ -14,15 +14,6 @@
       }
     ]
   },
-  "bundle": {
-    "icon": [
-      "../editions/alpha/icons/32x32.png",
-      "../editions/alpha/icons/128x128.png",
-      "../editions/alpha/icons/128x128@2x.png",
-      "../editions/alpha/icons/icon.icns",
-      "../editions/alpha/icons/icon.ico"
-    ]
-  },
   "plugins": {
     "updater": {
       "endpoints": [

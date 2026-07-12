@@ -69,32 +69,26 @@ export function Sidebar() {
       <div
         className="flex items-center justify-between mb-6 px-5 cursor-default">
         <div className="flex items-center">
-          {IS_ALPHA ? (
-            <>
-              <span className="text-[14px] font-bold tracking-tight text-text-primary">
-                TC<span style={{color: 'var(--color-accent)'}}>/</span>Alpha
-              </span>
-              <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase
+          {/* Keep the profile entry available in every edition. */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setProfileOpen(true)}
+              className="rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40"
+              title="个人资料"
+            >
+              <img src="/app-icon.png" alt="" className="w-8 h-8 rounded-lg shadow-sm" />
+            </button>
+            <span className="text-[18px] font-bold tracking-wide text-text-primary">
+              TOKEN<span className="text-accent">/</span>CODE
+            </span>
+            {IS_ALPHA && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase
                 bg-accent/15 text-accent leading-none">
                 alpha
               </span>
-            </>
-          ) : (
-            /* Text logo — TOKEN/CODE, slash uses theme accent */
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setProfileOpen(true)}
-                className="rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40"
-                title="个人资料"
-              >
-                <img src="/app-icon.png" alt="" className="w-8 h-8 rounded-lg shadow-sm" />
-              </button>
-              <span className="text-[18px] font-bold tracking-wide text-text-primary">
-                TOKEN<span className="text-accent">/</span>CODE
-              </span>
+            )}
               <span className="text-[16px] text-success">♧</span>
-            </div>
-          )}
+          </div>
         </div>
         <button onClick={toggleSidebar}
           className="p-1.5 rounded-lg hover:bg-bg-tertiary text-text-tertiary

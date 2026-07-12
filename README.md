@@ -2,6 +2,11 @@
 
 ## 更新记录
 
+### v0.10.17-alpha.1
+
+- 恢复左侧顶部的可点击应用头像；Alpha 版也可以打开个人资料和贡献热力图。
+- Alpha 发行包恢复使用 TOKENICODE 的暖色应用图标，不再覆盖为旧的 TCAlpha 彩虹图标。
+
 ### v0.10.16-alpha.1
 
 - 修复模型输出中的超长 URL、连续英文和无空格文本超出消息区域的问题；普通正文会自动换行，代码块仍保留横向滚动。
@@ -193,11 +198,11 @@
 
 请到 GitHub Releases 下载最新版本：
 
-- Windows x64 便携版：`tokenicode-deepseek-alpha-v0.10.16-alpha.1-windows-x64.exe`
-- Windows x64 安装版：`tokenicode-deepseek-alpha-v0.10.16-alpha.1-windows-x64-setup.exe`
-- Windows x64 MSI：`tokenicode-deepseek-alpha-v0.10.16-alpha.1-windows-x64.msi`
-- macOS Apple Silicon：`tokenicode-deepseek-alpha-v0.10.16-alpha.1-macos-apple-silicon-0.10.16_aarch64.dmg`
-- macOS Intel：`tokenicode-deepseek-alpha-v0.10.16-alpha.1-macos-intel-0.10.16_x64.dmg`
+- Windows x64 便携版：`tokenicode-deepseek-alpha-v0.10.17-alpha.1-windows-x64.exe`
+- Windows x64 安装版：`tokenicode-deepseek-alpha-v0.10.17-alpha.1-windows-x64-setup.exe`
+- Windows x64 MSI：`tokenicode-deepseek-alpha-v0.10.17-alpha.1-windows-x64.msi`
+- macOS Apple Silicon：`tokenicode-deepseek-alpha-v0.10.17-alpha.1-macos-apple-silicon-0.10.17_aarch64.dmg`
+- macOS Intel：`tokenicode-deepseek-alpha-v0.10.17-alpha.1-macos-intel-0.10.17_x64.dmg`
 
 每个发行包旁边都有对应的 `.sha256.txt` 校验文件。下载后直接运行即可；首次运行时请按需要配置 CC Switch / DeepSeek API。
 
