@@ -27,6 +27,7 @@ export function CommandProcessingCard({ message }: Props) {
   const data = message.commandData || {};
   const commandName = data.command || '';
   const isCompleted = message.commandCompleted === true;
+  const isFailed = data.status === 'failed';
   const startTime = message.commandStartTime || message.timestamp;
   const costSummary = data.costSummary as { cost: string; duration: string; turns: string; input: string; output: string } | undefined;
 
@@ -47,14 +48,23 @@ export function CommandProcessingCard({ message }: Props) {
   return (
     <div className="flex justify-center my-2 animate-scale-in">
       <div className={`w-full max-w-md rounded-xl border overflow-hidden transition-all duration-200
-        ${isCompleted
+        ${isFailed
+          ? 'border-error/30 bg-error/5'
+          : isCompleted
           ? 'border-border-subtle bg-bg-secondary/30'
           : 'border-accent/20 bg-accent/5 shadow-sm'
         }`}>
         {/* Main row: icon + command + elapsed */}
         <div className="flex items-center gap-3 px-4 py-3">
           {/* Status icon */}
-          {isCompleted ? (
+          {isFailed ? (
+            <div className="w-6 h-6 rounded-full bg-error/15 flex items-center justify-center flex-shrink-0">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+                stroke="var(--color-error)" strokeWidth="2" strokeLinecap="round">
+                <path d="M4 4l6 6M10 4l-6 6" />
+              </svg>
+            </div>
+          ) : isCompleted ? (
             <div className="w-6 h-6 rounded-full bg-success/15 flex items-center justify-center flex-shrink-0">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
                 stroke="var(--color-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -75,11 +85,13 @@ export function CommandProcessingCard({ message }: Props) {
                 {commandName}
               </code>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium
-                ${isCompleted
+                ${isFailed
+                  ? 'bg-error/10 text-error'
+                  : isCompleted
                   ? 'bg-success/10 text-success'
                   : 'bg-accent/10 text-accent'
                 }`}>
-                {isCompleted ? t('cmd.processingDone') : t('cmd.processing')}
+                {isFailed ? t('cmd.processingFailed') : isCompleted ? t('cmd.processingDone') : t('cmd.processing')}
               </span>
             </div>
           </div>

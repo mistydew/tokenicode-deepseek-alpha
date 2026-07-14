@@ -3164,6 +3164,13 @@ fn read_dir_recursive(dir: &std::path::Path, current_depth: u32, max_depth: u32)
 }
 
 #[tauri::command]
+fn get_home_dir() -> Result<String, String> {
+    dirs::home_dir()
+        .map(|path| path.to_string_lossy().to_string())
+        .ok_or_else(|| "Cannot determine home directory".to_string())
+}
+
+#[tauri::command]
 async fn read_file_content(path: String) -> Result<String, String> {
     // Limit to 1MB to prevent loading huge files
     let metadata = std::fs::metadata(&path).map_err(|e| format!("Cannot read file: {}", e))?;
@@ -7554,6 +7561,7 @@ pub fn run() {
             search_sessions,
             load_session,
             read_file_tree,
+            get_home_dir,
             read_file_content,
             write_file_content,
             copy_file,

@@ -309,6 +309,9 @@ const messages: Record<Locale, Record<string, string>> = {
     'chat.awaiting': '等待输入...',
     'chat.tokenWarning': '上下文即将满载，建议 /compact',
     'chat.autoCompacting': '上下文接近上限，自动压缩中...',
+    'chat.compactRunning': '压缩中',
+    'chat.compactSucceeded': '已压缩',
+    'chat.compactFailed': '压缩失败',
     'chat.stallWarning': '任务仍在运行中，复杂任务可能需要较长时间。若界面持续无任何变化，可停止后重试',
 
     // Agent panel
@@ -525,6 +528,7 @@ const messages: Record<Locale, Record<string, string>> = {
     // Command processing card
     'cmd.processing': '正在执行',
     'cmd.processingDone': '执行完成',
+    'cmd.processingFailed': '执行失败',
     'cmd.elapsed': '耗时',
     'cmd.showOutput': '查看输出',
     'cmd.hideOutput': '收起输出',
@@ -1023,6 +1027,9 @@ const messages: Record<Locale, Record<string, string>> = {
     'chat.awaiting': 'Awaiting input...',
     'chat.tokenWarning': 'Context nearly full — try /compact',
     'chat.autoCompacting': 'Context near limit, auto-compacting...',
+    'chat.compactRunning': 'Compacting',
+    'chat.compactSucceeded': 'Compacted',
+    'chat.compactFailed': 'Compact failed',
     'chat.stallWarning': 'Task still running — complex tasks may take a while. If no activity appears, try stopping and retrying',
 
     // Agent panel
@@ -1239,6 +1246,7 @@ const messages: Record<Locale, Record<string, string>> = {
     // Command processing card
     'cmd.processing': 'Running',
     'cmd.processingDone': 'Completed',
+    'cmd.processingFailed': 'Failed',
     'cmd.elapsed': 'Elapsed',
     'cmd.showOutput': 'Show output',
     'cmd.hideOutput': 'Hide output',

@@ -6,6 +6,19 @@ All notable changes to TOKENICODE will be documented in this file.
 
 ---
 
+## [1.0.3] - 2026-07-15
+
+### Fixed
+
+- **自动压缩可靠性提升** — 重构自动 compact 触发与验证逻辑：仅在检测到有意义的上下文用量变化后才更新 token 计数，避免合成/控制消息导致的虚假更新。
+- **压缩验证机制** — 压缩后通过上下文下降至少 20% 来确认成功，替代仅靠 `compact_boundary` 判断的方式。
+- **历史会话恢复** — 加载已有会话时恢复 compact 状态，不再丢失压缩记录。
+- **模型名保护** — 会话加载时不再将模型名覆盖为 `<synthetic>`，保证恢复正确的模型信息。
+
+### Changed
+
+- **Compact 生命周期** — 新增 `CompactionState` 接口，统一追踪 auto/manual compact 的全生命周期（`running` → `succeeded` / `failed`），含 90 秒超时自动失败回退。
+
 ## [1.0.2] - 2026-07-13
 
 ### Added

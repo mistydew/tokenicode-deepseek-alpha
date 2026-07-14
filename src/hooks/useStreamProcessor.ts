@@ -14,7 +14,12 @@ import { bridge, onClaudeStream, onClaudeStderr } from '../lib/tauri-bridge';
 import { envFingerprint, resolveModelForProvider, resolveThinkingLevelForProvider } from '../lib/api-provider';
 import { useProviderStore } from '../stores/providerStore';
 import { t } from '../lib/i18n';
-import { getContextInputTokens, getContextOutputTokens } from '../lib/context-usage';
+import {
+  getContextInputTokens,
+  getContextOutputTokens,
+  hasMeaningfulContextUsage,
+  isVerifiedCompactionDrop,
+} from '../lib/context-usage';
 
 // --- Error classification for user-facing messages ---
 // Each pattern maps to a friendly i18n key. Matched errors show the friendly
@@ -188,6 +193,153 @@ function _maybeRefreshFileTree(tabId: string, toolUseId?: string, toolName?: str
       _scheduleFileTreeRefresh();
     }
   }
+}
+
+function contextTokensForTab(tabId: string): number {
+  const meta = useChatStore.getState().getTab(tabId)?.sessionMeta;
+  return (meta?.contextInputTokens ?? 0) + (meta?.contextOutputTokens ?? 0);
+}
+
+function compactThresholdForTab(tabId: string): number {
+  const meta = useChatStore.getState().getTab(tabId)?.sessionMeta;
+  const settings = useSettingsStore.getState();
+  return getAutoCompactThreshold(
+    meta?.spawnedModel || meta?.snapshotModel || settings.selectedModel,
+    meta?.snapshotContextWindowMode ?? settings.contextWindowMode,
+    settings.autoCompactThresholdTokens,
+  );
+}
+
+function isPendingCompact(tabId: string, messageId?: string): boolean {
+  if (!messageId) return false;
+  const message = useChatStore.getState().getTab(tabId)?.messages.find((item) => item.id === messageId);
+  return message?.commandData?.command === '/compact';
+}
+
+function finishCompaction(
+  tabId: string,
+  status: 'succeeded' | 'failed',
+  options: { afterTokens?: number; beforeTokens?: number; error?: string; boundary?: boolean } = {},
+) {
+  const store = useChatStore.getState();
+  const meta = store.getTab(tabId)?.sessionMeta;
+  const previous = meta?.compaction;
+  const completedAt = Date.now();
+  const beforeTokens = options.beforeTokens ?? previous?.beforeTokens ?? contextTokensForTab(tabId);
+  const afterTokens = options.afterTokens;
+  const firstStep = previous?.trigger === 'manual'
+    ? `1. 已手动请求压缩：${beforeTokens.toLocaleString()} tokens`
+    : `1. 已达到自动压缩阈值：${beforeTokens.toLocaleString()} tokens`;
+  const successOutput = options.boundary
+    ? `${firstStep}\n2. 已发送 /compact\n3. 已收到 compact_boundary，压缩确认成功\n完成时间：${new Date(completedAt).toLocaleString()}`
+    : `${firstStep}\n2. 已发送 /compact\n3. 检测到上下文下降至 ${(afterTokens ?? 0).toLocaleString()} tokens，压缩确认成功\n完成时间：${new Date(completedAt).toLocaleString()}`;
+  const failedOutput = `${firstStep}\n2. 已发送 /compact\n3. 未检测到 compact_boundary 或上下文下降\n失败时间：${new Date(completedAt).toLocaleString()}\n${options.error || '将在下一轮回复后自动重试'}`;
+  const pendingId = meta?.pendingCommandMsgId;
+
+  if (isPendingCompact(tabId, pendingId)) {
+    const pending = store.getTab(tabId)?.messages.find((item) => item.id === pendingId);
+    store.updateMessage(tabId, pendingId!, {
+      commandCompleted: true,
+      commandData: {
+        ...pending?.commandData,
+        status,
+        output: status === 'succeeded' ? successOutput : failedOutput,
+        completedAt,
+      },
+    });
+    store.setSessionMeta(tabId, { pendingCommandMsgId: undefined });
+  }
+
+  store.setSessionMeta(tabId, {
+    compaction: {
+      status,
+      trigger: previous?.trigger ?? 'auto',
+      startedAt: previous?.startedAt ?? completedAt,
+      completedAt,
+      beforeTokens,
+      afterTokens,
+      error: status === 'failed' ? options.error || 'Compact was not verified' : undefined,
+    },
+    autoCompactArmed: status === 'failed',
+  });
+  if (store.getTab(tabId)?.sessionStatus === 'running') {
+    store.setSessionStatus(tabId, status === 'failed' ? 'error' : 'idle');
+  }
+}
+
+function observeContextUsage(tabId: string, usage: Parameters<typeof hasMeaningfulContextUsage>[0]): boolean {
+  if (!hasMeaningfulContextUsage(usage)) return false;
+  const nextTokens = getContextInputTokens(usage) + getContextOutputTokens(usage);
+  const meta = useChatStore.getState().getTab(tabId)?.sessionMeta;
+  const running = meta?.compaction;
+  if (running?.status === 'running' && isVerifiedCompactionDrop(running.beforeTokens, nextTokens)) {
+    finishCompaction(tabId, 'succeeded', { afterTokens: nextTokens });
+  }
+  if (nextTokens < compactThresholdForTab(tabId)) {
+    useChatStore.getState().setSessionMeta(tabId, { autoCompactArmed: true });
+  }
+  return true;
+}
+
+function tryAutoCompact(
+  tabId: string,
+  resultSubtype: string | undefined,
+  firedRef?: MutableRefObject<boolean>,
+): boolean {
+  if (resultSubtype !== 'success') return false;
+  const store = useChatStore.getState();
+  const meta = store.getTab(tabId)?.sessionMeta;
+  const currentTokens = contextTokensForTab(tabId);
+  const threshold = compactThresholdForTab(tabId);
+  if (
+    currentTokens <= threshold
+    || !meta?.stdinId
+    || meta.autoCompactArmed === false
+    || meta.compaction?.status === 'running'
+  ) {
+    return false;
+  }
+
+  const compactMsgId = generateMessageId();
+  const startedAt = Date.now();
+  firedRef && (firedRef.current = true);
+  store.addMessage(tabId, {
+    id: compactMsgId,
+    role: 'system',
+    type: 'text',
+    content: t('chat.autoCompacting'),
+    commandType: 'processing',
+    commandData: { command: '/compact' },
+    commandStartTime: startedAt,
+    commandCompleted: false,
+    timestamp: startedAt,
+  });
+  store.setSessionMeta(tabId, {
+    pendingCommandMsgId: compactMsgId,
+    autoCompactArmed: false,
+    compaction: {
+      status: 'running',
+      trigger: 'auto',
+      startedAt,
+      beforeTokens: currentTokens,
+    },
+  });
+  store.setSessionStatus(tabId, 'running');
+  store.setActivityStatus(tabId, { phase: 'thinking' });
+
+  bridge.sendStdin(meta.stdinId, '/compact').catch((error) => {
+    firedRef && (firedRef.current = false);
+    finishCompaction(tabId, 'failed', { error: String(error) });
+  });
+
+  setTimeout(() => {
+    const latest = useChatStore.getState().getTab(tabId)?.sessionMeta;
+    if (latest?.compaction?.status === 'running' && latest.pendingCommandMsgId === compactMsgId) {
+      firedRef && (firedRef.current = false);
+      finishCompaction(tabId, 'failed', { error: '90 秒内未验证压缩；将在下一轮回复后重试' });
+    }
+  }, 90_000);
+  return true;
 }
 
 /**
@@ -382,11 +534,14 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
         if (evt.type === 'message_start' && evt.message?.usage) {
           const bgTab = store.getTab(tabId);
           const delta = evt.message.usage.input_tokens || 0;
+          const meaningfulUsage = observeContextUsage(tabId, evt.message.usage);
           store.setSessionMeta(tabId, {
             inputTokens: (bgTab?.sessionMeta.inputTokens || 0) + delta,
             totalInputTokens: (bgTab?.sessionMeta.totalInputTokens || 0) + delta,
-            contextInputTokens: getContextInputTokens(evt.message.usage),
-            contextOutputTokens: 0,
+            ...(meaningfulUsage ? {
+              contextInputTokens: getContextInputTokens(evt.message.usage),
+              contextOutputTokens: 0,
+            } : {}),
           });
         }
         if (evt.type === 'message_delta' && evt.usage?.output_tokens) {
@@ -596,6 +751,9 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
             });
           }
         }
+        if (tryAutoCompact(tabId, msg.subtype)) {
+          break;
+        }
         // FIFO drain for background tabs (#142/#70): same logic as foreground.
         {
           const bgDrainTab = store.getTab(tabId);
@@ -681,6 +839,10 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           (window as any).__claudeUnlisteners[bgStdinId]();
           delete (window as any).__claudeUnlisteners[bgStdinId];
         }
+        const bgPendingCommand = store.getTab(tabId)?.sessionMeta.pendingCommandMsgId;
+        if (isPendingCompact(tabId, bgPendingCommand)) {
+          finishCompaction(tabId, 'failed', { error: 'CLI 进程在压缩确认前退出；将在下一轮回复后重试' });
+        }
         store.setSessionStatus(tabId, 'idle');
         store.setSessionMeta(tabId, { stdinId: undefined });
         // Clean up stdinToTab mapping to prevent memory leak
@@ -701,6 +863,12 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
       case 'system':
         if (msg.subtype === 'init') {
           store.setSessionMeta(tabId, { model: msg.model });
+        } else if (msg.subtype === 'compact_boundary') {
+          const metadata = msg.compactMetadata || msg.compact_metadata || {};
+          finishCompaction(tabId, 'succeeded', {
+            beforeTokens: Number(metadata.preTokens ?? metadata.pre_tokens) || undefined,
+            boundary: true,
+          });
         } else if (msg.subtype === 'error') {
           // FI-3: Surface system errors in background tabs too
           store.addMessage(tabId, {
@@ -1045,11 +1213,14 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
         if (evt.type === 'message_start' && evt.message?.usage) {
           const meta = useChatStore.getState().getTab(tabId)?.sessionMeta ?? {};
           const delta = evt.message.usage.input_tokens || 0;
+          const meaningfulUsage = observeContextUsage(tabId, evt.message.usage);
           setSessionMeta({
             inputTokens: (meta.inputTokens || 0) + delta,
             totalInputTokens: (meta.totalInputTokens || 0) + delta,
-            contextInputTokens: getContextInputTokens(evt.message.usage),
-            contextOutputTokens: 0,
+            ...(meaningfulUsage ? {
+              contextInputTokens: getContextInputTokens(evt.message.usage),
+              contextOutputTokens: 0,
+            } : {}),
           });
         }
 
@@ -1069,6 +1240,12 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
       case 'system':
         if (msg.subtype === 'init') {
           setSessionMeta({ model: msg.model });
+        } else if (msg.subtype === 'compact_boundary') {
+          const metadata = msg.compactMetadata || msg.compact_metadata || {};
+          finishCompaction(tabId, 'succeeded', {
+            beforeTokens: Number(metadata.preTokens ?? metadata.pre_tokens) || undefined,
+            boundary: true,
+          });
         } else if (msg.subtype === 'error') {
           // FI-3: Surface system-level errors instead of silently dropping them
           const rawError = msg.message || msg.error || 'System error';
@@ -1113,7 +1290,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
         // completed now — the assistant response means the CLI has responded.
         // Some commands (e.g. /compact) may not emit a 'result' event.
         const pendingCmd = useChatStore.getState().getTab(tabId)?.sessionMeta.pendingCommandMsgId;
-        if (pendingCmd) {
+        if (pendingCmd && !isPendingCompact(tabId, pendingCmd)) {
           useChatStore.getState().updateMessage(tabId, pendingCmd, {
             commandCompleted: true,
             commandData: {
@@ -1631,7 +1808,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
 
         // Mark pending processing card (CLI slash command) as completed
         const pendingCmdMsgId = useChatStore.getState().getTab(tabId)?.sessionMeta.pendingCommandMsgId;
-        if (pendingCmdMsgId) {
+        if (pendingCmdMsgId && !isPendingCompact(tabId, pendingCmdMsgId)) {
           const resultOutput = typeof msg.result === 'string' ? msg.result : '';
           useChatStore.getState().updateMessage(tabId, pendingCmdMsgId, {
             commandCompleted: true,
@@ -1761,61 +1938,8 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           }
         }
 
-        // --- Auto-compact: threshold follows the declared context window.
-        // Default 200K models compact at 160K; declared 1M models compact at 800K.
-        // Fires at most once per session to avoid infinite loops.
-        const compactMeta = useChatStore.getState().getTab(tabId)?.sessionMeta;
-        const currentContextTokens = compactMeta?.contextInputTokens != null
-          ? compactMeta.contextInputTokens + (compactMeta.contextOutputTokens ?? 0)
-          : msg.usage?.input_tokens || 0;
-        const compactStdinId = compactMeta?.stdinId;
-        const compactModel = compactMeta?.spawnedModel || compactMeta?.snapshotModel || useSettingsStore.getState().selectedModel;
-        const compactMode = compactMeta?.snapshotContextWindowMode ?? useSettingsStore.getState().contextWindowMode;
-        const autoCompactThreshold = getAutoCompactThreshold(
-          compactModel,
-          compactMode,
-          useSettingsStore.getState().autoCompactThresholdTokens,
-        );
-        if (currentContextTokens > autoCompactThreshold && !autoCompactFiredRef.current && compactStdinId && msg.subtype === 'success') {
-          autoCompactFiredRef.current = true;
-          console.log('[TOKENICODE] Auto-compact triggered:', { contextTokens: currentContextTokens, threshold: autoCompactThreshold });
-          const compactMsgId = generateMessageId();
-          addMessage({
-            id: compactMsgId,
-            role: 'system',
-            type: 'text',
-            content: t('chat.autoCompacting'),
-            commandType: 'processing',
-            commandData: { command: '/compact' },
-            commandStartTime: Date.now(),
-            commandCompleted: false,
-            timestamp: Date.now(),
-          });
-          // FI-4: Register pendingCommandMsgId so result handler can mark it completed
-          setSessionMeta({ pendingCommandMsgId: compactMsgId });
-          setSessionStatus('running');
-          setActivityStatus({ phase: 'thinking' });
-          bridge.sendStdin(compactStdinId, '/compact').catch((err) => {
-            console.error('[TOKENICODE] Auto-compact failed:', err);
-          });
-          // FI-4: Timeout fallback — if compact doesn't complete within 90s, auto-complete
-          setTimeout(() => {
-            const meta = useChatStore.getState().getTab(tabId)?.sessionMeta ?? {};
-            if (meta.pendingCommandMsgId === compactMsgId) {
-              useChatStore.getState().updateMessage(tabId, compactMsgId, {
-                commandCompleted: true,
-                commandData: {
-                  ...(useChatStore.getState().getTab(tabId)?.messages ?? []).find((m) => m.id === compactMsgId)?.commandData,
-                  output: 'Compact timed out',
-                  completedAt: Date.now(),
-                },
-              });
-              useChatStore.getState().setSessionMeta(tabId, { pendingCommandMsgId: undefined });
-              if (useChatStore.getState().getTab(tabId)?.sessionStatus === 'running') {
-                useChatStore.getState().setSessionStatus(tabId, 'idle');
-              }
-            }
-          }, 15_000); // Bug C fix (#27): reduced from 90s to 15s
+        // Auto-compact is now verified by compact_boundary or a substantial context drop.
+        if (tryAutoCompact(tabId, msg.subtype, autoCompactFiredRef)) {
           break; // Skip pending message flush — compact takes priority
         }
 
@@ -1891,8 +2015,13 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
         // Bug C fix (#27): Clear stuck pendingCommandMsgId (e.g., /compact without result)
         const exitPendingCmd = useChatStore.getState().getTab(tabId)?.sessionMeta.pendingCommandMsgId;
         if (exitPendingCmd) {
-          useChatStore.getState().updateMessage(tabId, exitPendingCmd, { commandCompleted: true });
-          useChatStore.getState().setSessionMeta(tabId, { pendingCommandMsgId: undefined });
+          if (isPendingCompact(tabId, exitPendingCmd)) {
+            autoCompactFiredRef.current = false;
+            finishCompaction(tabId, 'failed', { error: 'CLI 进程在压缩确认前退出；将在下一轮回复后重试' });
+          } else {
+            useChatStore.getState().updateMessage(tabId, exitPendingCmd, { commandCompleted: true });
+            useChatStore.getState().setSessionMeta(tabId, { pendingCommandMsgId: undefined });
+          }
         }
 
         // If the session was running and no assistant messages were received,

@@ -30,3 +30,13 @@ export function getContextInputTokens(usage: TokenUsage | undefined): number {
 export function getContextOutputTokens(usage: TokenUsage | undefined): number {
   return tokenCount(usage?.output_tokens);
 }
+
+/** Ignore synthetic/control records whose usage object contains no real tokens. */
+export function hasMeaningfulContextUsage(usage: TokenUsage | undefined): boolean {
+  return getContextInputTokens(usage) + getContextOutputTokens(usage) > 0;
+}
+
+/** A compact is considered verified when the next real model call is at least 20% smaller. */
+export function isVerifiedCompactionDrop(beforeTokens: number, afterTokens: number): boolean {
+  return beforeTokens > 0 && afterTokens > 0 && afterTokens <= beforeTokens * 0.8;
+}

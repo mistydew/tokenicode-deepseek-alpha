@@ -326,6 +326,7 @@ function ContextMeter({ sessionMeta, tabId, sessionStatus }: {
   const selectedModel = useSettingsStore((s) => s.selectedModel);
   const contextWindowMode = useSettingsStore((s) => s.contextWindowMode);
   const autoCompactThresholdTokens = useSettingsStore((s) => s.autoCompactThresholdTokens);
+  const t = useT();
   const [isCompacting, setIsCompacting] = useState(false);
   const modelForContext = sessionMeta.spawnedModel
     || sessionMeta.snapshotModel
@@ -343,6 +344,10 @@ function ContextMeter({ sessionMeta, tabId, sessionStatus }: {
   const thresholdPercent = Math.min(100, Math.round((compactThreshold / contextWindow) * 100));
   const isBusy = sessionStatus === 'running';
   const canCompact = Boolean(tabId && sessionMeta.stdinId && !isBusy && !isCompacting);
+  const compaction = sessionMeta.compaction;
+  const compactionTime = compaction
+    ? new Date(compaction.completedAt ?? compaction.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : '';
 
   const handleCompact = async () => {
     if (!tabId || !sessionMeta.stdinId || isBusy) return;
@@ -361,12 +366,72 @@ function ContextMeter({ sessionMeta, tabId, sessionStatus }: {
       timestamp: Date.now(),
     });
     store.setSessionMeta(tabId, { pendingCommandMsgId: processingMsgId });
+    store.setSessionMeta(tabId, {
+      autoCompactArmed: false,
+      compaction: {
+        status: 'running',
+        trigger: 'manual',
+        startedAt: Date.now(),
+        beforeTokens: used,
+      },
+    });
     store.setSessionStatus(tabId, 'running');
     store.setActivityStatus(tabId, { phase: 'thinking' });
     try {
       await bridge.sendStdin(sessionMeta.stdinId, '/compact');
+      setTimeout(() => {
+        const latest = useChatStore.getState().getTab(tabId)?.sessionMeta;
+        if (latest?.pendingCommandMsgId !== processingMsgId || latest.compaction?.status !== 'running') {
+          return;
+        }
+        const completedAt = Date.now();
+        const currentStore = useChatStore.getState();
+        currentStore.updateMessage(tabId, processingMsgId, {
+          commandCompleted: true,
+          commandData: {
+            command: '/compact',
+            status: 'failed',
+            output: '90 秒内未检测到 compact_boundary 或上下文下降，可以再次点击 Compact 重试。',
+            completedAt,
+          },
+        });
+        currentStore.setSessionMeta(tabId, {
+          pendingCommandMsgId: undefined,
+          autoCompactArmed: true,
+          compaction: {
+            ...latest.compaction,
+            status: 'failed',
+            completedAt,
+            error: 'Compact was not verified within 90 seconds',
+          },
+        });
+        if (currentStore.getTab(tabId)?.sessionStatus === 'running') {
+          currentStore.setSessionStatus(tabId, 'error');
+        }
+      }, 90_000);
     } catch (e) {
-      store.setSessionMeta(tabId, { pendingCommandMsgId: undefined });
+      const completedAt = Date.now();
+      store.updateMessage(tabId, processingMsgId, {
+        commandCompleted: true,
+        commandData: {
+          command: '/compact',
+          status: 'failed',
+          output: `发送 /compact 失败：${String(e)}`,
+          completedAt,
+        },
+      });
+      store.setSessionMeta(tabId, {
+        pendingCommandMsgId: undefined,
+        autoCompactArmed: true,
+        compaction: {
+          status: 'failed',
+          trigger: 'manual',
+          startedAt: completedAt,
+          completedAt,
+          beforeTokens: used,
+          error: String(e),
+        },
+      });
       store.setSessionStatus(tabId, 'error');
       console.warn('[TOKENICODE] manual compact failed:', e);
     } finally {
@@ -398,6 +463,19 @@ function ContextMeter({ sessionMeta, tabId, sessionStatus }: {
       >
         Compact
       </button>
+      {compaction && (
+        <span
+          className={compaction.status === 'failed' ? 'text-error' : compaction.status === 'running' ? 'text-warning' : 'text-success'}
+          title={compaction.error || ''}
+        >
+          {compaction.status === 'running'
+            ? t('chat.compactRunning')
+            : compaction.status === 'succeeded'
+              ? t('chat.compactSucceeded')
+              : t('chat.compactFailed')}
+          {' '}{compactionTime}
+        </span>
+      )}
     </div>
   );
 }

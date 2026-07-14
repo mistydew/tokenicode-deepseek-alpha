@@ -353,11 +353,12 @@ export function ConversationList() {
       if (useSessionStore.getState().selectedSessionId !== sessionId) {
         return;
       }
-      const { messages, agents, contextInputTokens, contextOutputTokens, model } = parseSessionMessages(rawMessages);
+      const { messages, agents, contextInputTokens, contextOutputTokens, compaction, model } = parseSessionMessages(rawMessages);
 
       setSessionMeta(sessionId, {
         contextInputTokens,
         contextOutputTokens,
+        compaction,
         model,
       });
 
