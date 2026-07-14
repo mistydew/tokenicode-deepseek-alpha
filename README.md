@@ -1,260 +1,187 @@
+<div align="center">
+
+<img src="public/app-icon.png" alt="TOKENICODE Logo" width="120" />
+
 # TOKENICODE DeepSeek Alpha
 
-## 更新记录
+### A TOKENICODE fork tuned for DeepSeek & CC Switch
 
-### v1.0.2
+[![Version](https://img.shields.io/github/v/release/mistydew/tokenicode-deepseek-alpha?style=flat-square&color=blue)](https://github.com/mistydew/tokenicode-deepseek-alpha/releases)
+[![License](https://img.shields.io/badge/license-Apache%202.0-green?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey?style=flat-square)](#download)
+[![Tauri](https://img.shields.io/badge/Tauri-2.0-FFC131?style=flat-square&logo=tauri&logoColor=white)](https://tauri.app)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
 
-- 修复 200K / 1M 上下文仪表计算：按最近一次模型调用统计普通输入、缓存读取、缓存创建和当前输出，不再因工具调用累计而乱跳或归零。
-- 加载历史对话时恢复最后一次真实上下文占用与模型信息，不再统一显示 100% 可用。
-- 聊天消息新增 KaTeX 数学公式渲染，兼容 `$...$`、`$$...$$`、`\(...\)`、`\[...\]`，并保留完整 Markdown 渲染。
-- 右侧功能面板标签新增横向滑条，窄面板下仍可浏览文件、预览、技能和插件。
-- 移除输入框上方重复的“最新”按钮，保留右侧时间轴的跳转入口。
+**TOKENICODE DeepSeek Alpha** is a personal fork of [TOKENICODE](https://github.com/yiliqi78/TOKENICODE) — a native desktop GUI for [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code). This fork adds DeepSeek / CC Switch model mappings, independent Provider management, Codex skills panel, skills translation, built-in web preview, and a VS Code-styled dark theme.
 
-### v0.10.12-alpha.1
+[**Download**](https://github.com/mistydew/tokenicode-deepseek-alpha/releases) · [**Features**](#features) · [**Changelog**](CHANGELOG.md)
 
-- 修正上一版对 DeepSeek OpenAI `base_url` 的处理：官网写法 `https://api.deepseek.com` 会请求 `/chat/completions`，不再强行补 `/v1`。
-- 保留 `/v1` 兼容：如果用户显式填写 `https://api.deepseek.com/v1`，仍会请求 `/v1/chat/completions`。
-- 翻译配置面板说明同步改为 DeepSeek 官网写法，避免误导用户改成非官网 URL。
+---
 
-### v0.10.11-alpha.1
+**[English](README.md)** | **[中文](README_zh.md)**
 
-- 修复 Skills 翻译 API 的 OpenAI/DeepSeek Base URL 拼接兼容性，支持裸 base URL、`/v1` 和完整 `/chat/completions` 地址。
-- 翻译请求增加 `Accept-Encoding: identity`，减少代理或网关压缩响应导致的 `error decoding response body`。
-- 翻译配置面板补充 Base URL / Proxy URL 说明，明确 Proxy URL 只是网络代理地址，通常可以留空。
-- 响应读取失败时会给出更明确的排查提示，方便定位 Base URL、代理或网关改写问题。
+</div>
 
-### v0.10.10-alpha.1
+## What's Different
 
-- 修复切换 Provider 后仍保留旧模型选择的问题，避免把 `gemma4:12b` 这类本地模型名发给 DeepSeek / CC Switch 接口。
-- 模型解析现在会严格跟随当前激活 Provider：当前选择不属于该 Provider 时，会回退到当前 Provider 的已配置模型映射。
-- 底部模型下拉会在 Provider 变化后自动切换到当前 Provider 可用模型，减少 UI 显示和实际请求模型不一致。
+This fork keeps all TOKENICODE desktop workflow features and adds DeepSeek / CC Switch oriented improvements:
 
-### v0.10.9-alpha.1
+| Area | Original TOKENICODE | DeepSeek Alpha |
+|------|---------------------|----------------|
+| Model display | Claude / Opus / Sonnet / Haiku | `DeepseekV4Pro` / `DeepseekV4Flash` with auto API mapping |
+| API providers | Standard Anthropic setup | Multi-provider manager: Anthropic & OpenAI-compatible formats, Base URL, proxy, model mapping |
+| Skills | Basic skill management | Codex/Agent skills scanner with dedup, enable/disable, file locate, translate |
+| Skills translation | — | One-click translate skill list and SKILL.md preview via separate translation API |
+| Preview | — | Built-in browser panel for web, localhost, local files |
+| Themes | Light / dark | Adds VS Code Dark and clean white themes |
+| Fonts | Fixed monospace areas | Configurable UI font, monospace areas follow UI font for CJK consistency |
+| New session flow | Welcome page re-select | Remembers last project folder, in-chat folder switcher |
+| Context | Standard context meter | 200K / 1M context dashboard, auto-compact with configurable threshold, KaTeX math rendering |
+| Releases | Original project releases | Windows x64 portable + NSIS installer with SHA256 checksums |
 
-- 左侧边栏新增“添加文件夹”入口，可以像 Codex 一样直接选择现有文件夹并创建项目。
-- 选择文件夹后会立即切换工作目录，并在会话列表中生成对应项目分组，不需要先进入欢迎页重新选择。
-- “新任务”和“添加文件夹”复用同一套 draft 创建逻辑，减少不同入口行为不一致。
+## Features
 
-### v0.10.8-alpha.1
+### DeepSeek / CC Switch Adaptation
 
-- 自动 compact 阈值改为可在设置中手动调整，不再只能跟随写死的 160K / 800K。
-- 设置页新增 “自动 compact 阈值” 输入框，单位为 K tokens，并提供 160K、400K、800K、950K 快捷按钮。
-- 手动修改阈值会对当前会话立即生效；只有“上下文窗口”声明仍用于 200K / 1M 的容量显示和 Claude Code 子进程 compact window。
+- UI model names: `DeepseekV4Pro` and `DeepseekV4Flash`
+- Automatic API mapping to `deepseek-v4-pro` / `deepseek-v4-flash`
+- Legacy Claude model names auto-resolve to DeepSeek equivalents
+- Honors DeepSeek official base URL format (`https://api.deepseek.com`)
 
-### v0.10.7-alpha.1
+### Provider Manager
 
-- 新增“上下文窗口”设置，可在“标准 200K”和“声明 1M”之间切换。
-- 选择“声明 1M”后，前端上下文仪表盘按 1,000,000 tokens 计算，自动 compact 阈值从 160K 提升到 800K。
-- 自动 compact 不再写死 160K，而是跟随当前会话启动时的上下文窗口快照。
-- 启动 Claude Code 子进程时会显式传入上下文窗口，并为 1M 模型设置 `CLAUDE_CODE_AUTO_COMPACT_WINDOW=1000000`，避免 CLI 仍按 200K 提前压缩。
+- Anthropic and OpenAI-compatible formats
+- Custom Base URL, API Key, model mappings, and proxy support
+- Works with CC Switch, DeepSeek-compatible proxies, and third-party API gateways
+- Import/export provider configs (JSON)
+- One-click connection test with response time
 
-### v0.10.6-alpha.1
+### Codex Skills Panel
 
-- 新增聊天区右侧轮次时间线：每一轮用户提问都会生成一个编号节点，点击即可跳转到对应轮次。
-- 新增更清楚的“最新”跳转按钮：翻看旧消息后可以一键回到消息底部。
-- 时间线会跟随滚动高亮当前所在轮次，长对话中定位上下文更快。
-- 轮次跳转复用现有 rewind 的轮次解析逻辑，保证“第几轮”的判断和回退功能一致。
+- Auto-scan local Codex/Agent skills from `.codex/skills`, `.agents/skills`, `.claude/skills`, and plugin caches
+- Automatic deduplication
+- View, edit, enable/disable, copy path, locate file
+- Skills translation: translate skill list and SKILL.md preview (read-only, does not modify files)
+- Translation cache for fewer API calls
 
-### v0.10.5-alpha.1
+### Desktop Workflow
 
-- 新增输入框底部 Claude Code 权限模式切换器，不再需要去命令行里手动切换。
-- `Code` 模式改名为“标准自动”：自动接受代码编辑，敏感操作仍按 Claude Code 权限规则确认。
-- `Bypass` 模式改名为“全自动”：跳过权限检查，适合你确认环境安全时使用。
-- 会话启动和新任务预热都会记录当前模式、模型、思考等级和 Provider 快照，避免 UI 显示和实际 CLI 进程权限不一致。
-- 如果你在已有会话中切换“标准自动 / 全自动 / 询问 / 计划”，下一次发送会自动丢弃旧权限进程并用新模式启动，不需要手动重启 Claude Code。
+- Tauri 2 + React 19 native desktop app
+- File browser with SVG icons, change markers, flat search
+- CodeMirror editor with 12+ language syntax highlighting
+- Session management: pin, archive, batch operations, date grouping, export, AI title generation
+- Checkpoint rewind (code, conversation, or both)
+- Slash commands with auto-complete popup, command palette (`Ctrl+K`)
+- Agent activity monitoring
+- MCP server management
 
-### v0.10.4-alpha.1
+### Chat Experience
 
-- 紧急修复：点击左侧“新任务”后不再只取消选中旧会话，而是创建干净的新 draft 会话。
-- 修复新任务输入栏在没有 active session 时第一条消息可能无法正确发送的问题。
-- 输入栏提交时增加兜底：如果没有当前会话但已有工作目录，会自动创建新 draft 并读取编辑器中的当前文本。
-- 修复无 active Provider 时未知残留模型名会被原样发给 API 的问题；现在会回退到 `deepseek-v4-flash`，避免 `Model does not exist`。
+- Real-time NDJSON streaming with phase indicators (thinking, output, tool execution)
+- SDK control protocol: structured permission approvals, 4 modes (code / ask / plan / bypass)
+- Runtime mode and model switching without restart
+- 200K / 1M context dashboard with cache token accounting
+- Auto-compact with configurable threshold, verified 20% drop detection
+- KaTeX math rendering (inline + block, fractions, integrals, matrices)
+- Message timeline navigation with round-number jump
 
-### v0.10.3-alpha.1
+### Customization
 
-- MCP 设置页打开时会自动扫描本机已安装/已配置的 MCP。
-- 支持扫描 `~/.claude.json` 全局 MCP、Claude 项目级 MCP、`~/.mcp.json` 和 Codex 的 `~/.codex/config.toml`。
-- 扫描结果会显示来源、命令和环境变量数量，不直接展示环境变量值。
-- 对当前 TOKENICODE 尚未导入的 MCP，会显示“导入”按钮；也可以一键导入全部未导入项。
-- 同名 MCP 默认跳过，避免覆盖已有手动配置。
+- Multiple themes: VS Code Dark, clean white, light, dark, system-follow
+- Configurable UI font (Microsoft YaHei, Source Han Sans, LXGW WenKai, monospace)
+- Font size keyboard shortcuts
+- Chinese / English UI (switch in settings)
 
-### v0.10.2-alpha.1
+## Download
 
-- 新增“本地模型”设置页。
-- 支持检测本机 Ollama 服务与已安装模型。
-- 支持在界面里输入 Ollama 模型名并下载，例如 `qwen2.5-coder:7b`、`deepseek-r1:7b`。
-- 下载模型时显示 Ollama 输出进度。
-- 已安装模型可以一键设为本地 API Provider，自动使用 OpenAI 兼容端点 `http://localhost:11434/v1`。
-- 本机便携版 `D:\TOKENICODE\tokenicode.exe` 已同步更新到 `0.10.2`。
+Get the latest Windows x64 build from [GitHub Releases](https://github.com/mistydew/tokenicode-deepseek-alpha/releases/latest):
 
-### v0.10.1-alpha.1
+| File | Description |
+|------|-------------|
+| `tokenicode-deepseek-alpha-v*-windows-x64.exe` | Portable (no install required) |
+| `tokenicode-deepseek-alpha-v*-windows-x64-setup.exe` | NSIS installer |
+| `*.sha256.txt` | SHA256 checksum for integrity verification |
 
-- 将应用内“检查更新”源切换到本仓库 `mistydew/tokenicode-deepseek-alpha`。
-- 新增本项目自己的 Tauri updater 签名配置。
-- 发布 Windows x64 安装包、便携 exe、zip、`latest.json` 和 SHA256 校验文件。
-- 修复旧更新入口仍指向原版 TOKENICODE 项目的问题。
+Requires Windows 10 or later. Download and run — no external dependencies needed.
 
-> 后续每次发布新版，都会在这里继续追加更新说明。
+## Quick Start
 
-一个面向 DeepSeek / CC Switch 使用场景的 TOKENICODE 魔改版。它保留 TOKENICODE 的桌面 GUI、会话管理、文件浏览和 Claude Code CLI 工作流，同时把模型显示、第三方 API、Skills 管理和翻译体验做了更适合本地使用的改造。
+1. **Download** the portable `.exe` or installer from [Releases](https://github.com/mistydew/tokenicode-deepseek-alpha/releases/latest).
+2. **Launch TOKENICODE** — the setup wizard will guide you through Claude Code CLI installation and authentication on first run.
+3. **Configure API** — open Settings → API Provider, add your DeepSeek / CC Switch credentials.
+4. **Select a project folder** and start chatting.
 
-> 本项目基于 [TOKENICODE](https://github.com/yiliqi78/TOKENICODE) 修改而来。感谢原作者 TinyZ / yiliqi78 以及 TOKENICODE 项目的开源工作。本仓库保留原项目 Apache License 2.0 授权与 attribution，详见 [LICENSE](LICENSE) 和 [NOTICE](NOTICE)。
+### Recommended Models for CC Switch / DeepSeek
 
-## 功能亮点
+| Use case | Display name | API model |
+|----------|-------------|-----------|
+| Complex tasks | DeepseekV4Pro | `deepseek-v4-pro` |
+| Quick / translation / light tasks | DeepseekV4Flash | `deepseek-v4-flash` |
 
-- **DeepSeek / CC Switch 适配**
-  - 界面模型名改为 `DeepseekV4Pro` / `DeepseekV4Flash`
-  - 实际 API 请求自动映射为 `deepseek-v4-pro` / `deepseek-v4-flash`
-  - 兼容旧的 Claude/Fable/Opus/Sonnet/Haiku 显示名，自动归一到 DeepSeek 模型
+If using DeepSeek's official OpenAI-compatible API, check their current model list and select the OpenAI format in provider settings.
 
-- **独立 Provider 配置**
-  - 支持 Anthropic 格式和 OpenAI 兼容格式
-  - 支持自定义 Base URL、API Key、模型映射和代理
-  - 适合接入 CC Switch、DeepSeek 兼容代理、第三方模型网关
+### Skills Translation Setup
 
-- **Codex Skills 面板**
-  - 自动扫描本机已安装的 Codex/Agent skills
-  - 支持 `.codex/skills`、`.agents/skills`、`.claude/skills` 和插件缓存
-  - 自动去重，避免插件缓存和本地目录重复显示
-  - 可查看、编辑、启用/禁用、复制、定位 skill 文件
+Open the Skills panel (right sidebar), click the gear icon:
 
-- **Skills 翻译**
-  - 技能列表名称和简介可调用独立翻译 API 翻译为中文
-  - `SKILL.md` 预览正文也可一键翻译
-  - 翻译只影响预览，不会修改原始 skill 文件
-  - 翻译结果本地缓存，减少重复 API 调用
+- **Format**: Anthropic or OpenAI-compatible
+- **Base URL**: Your CC Switch or DeepSeek gateway
+- **API Key**: Your key
+- **Model**: A fast model is recommended (e.g. `deepseek-v4-flash`)
+- **Proxy URL**: Optional, leave empty unless you need an HTTP proxy
 
-- **内置网页预览**
-  - 右侧边栏新增 Preview 面板，可直接打开网页、localhost 和本地预览地址
-  - 支持后退、前进、刷新、外部浏览器打开
-  - 提供 Tauri 预览控制命令，方便后续接入 AI/MCP 工具调用
+Click the translate button to translate skill names and descriptions. Open a SKILL.md preview and click translate to translate its content.
 
-- **界面主题与字体优化**
-  - 新增 VS Code Dark 黑暗界面，接近 VS Code 的深色工作区观感
-  - 新增纯白简约风格，适合喜欢干净白底界面的用户
-  - 支持界面字体切换，可选择微软雅黑、系统字体、思源黑体、霞鹜文楷和等宽字体
-  - 默认让路径、模型名、小标签等原本等宽字体区域跟随界面字体，减少中英文/拼音混排时的割裂感
+## Development
 
-- **更顺手的新对话流程**
-  - 记住上一次选择的项目文件夹，作为新对话的默认工作目录
-  - 点击“新任务”不再强制回到欢迎页重新选择文件夹
-  - 输入框底部新增文件夹选择按钮，可以像 Codex 一样在对话区快速切换项目目录
-
-- **桌面工作流**
-  - Tauri 2 + React 19 桌面应用
-  - 内置文件浏览、Markdown/HTML/SVG/PDF/图片预览
-  - CodeMirror 编辑器，支持多种语言语法高亮
-  - 会话历史、归档、置顶、导出、AI 标题生成
-  - 支持计划模式、权限模式、回退和文件恢复
-
-- **长对话与数学公式**
-  - 200K / 1M 上下文仪表包含缓存 Token，并在历史会话恢复时显示真实占用
-  - 支持 Markdown 与 KaTeX 行内/块级公式，分式、积分、上下标和矩阵可直接排版
-  - 右侧轮次时间线可快速跳转历史轮次并返回最新消息
-
-## 相比原版 TOKENICODE 多了什么
-
-这个仓库不是简单改名版，而是围绕 DeepSeek、CC Switch 和 Codex skills 工作流做了一组定向魔改：
-
-| 方向 | 原版 TOKENICODE | DeepSeek Alpha 魔改版 |
-| --- | --- | --- |
-| 模型显示 | 主要沿用 Claude / Opus / Sonnet / Haiku 等命名 | 显示为 `DeepseekV4Pro`、`DeepseekV4Flash`，并自动映射到真实 API model |
-| CC Switch 适配 | 需要用户自己理解 Claude 名称和代理映射关系 | 内置 DeepSeek V4 Pro / Flash 显示与请求映射，减少填错模型名的问题 |
-| Provider 配置 | 更偏原始 Claude Code 使用方式 | 增加独立 Provider 管理，支持 Anthropic / OpenAI 兼容格式、Base URL、API Key、模型映射、代理 |
-| Skills 面板 | 原版没有面向 Codex skills 的完整管理面板 | 可以扫描、去重、查看、编辑、启用/禁用本机 Codex/Agent skills |
-| Skills 翻译 | 需要自己读英文 `SKILL.md` | 可以调用独立翻译 API 翻译技能列表和 `SKILL.md` 预览正文，且只改预览不改原文件 |
-| Preview 工具 | 没有内置网页预览控制面板 | 右侧新增 Preview，可打开网页、localhost、本地页面，并为后续 AI 控制预留命令 |
-| 主题 | 以原有浅/深色和背景为主 | 新增 VS Code Dark、纯白简约等更偏工作流的界面风格 |
-| 字体 | 字体跟随范围有限，部分小标签仍固定等宽 | 增加字体选择，并让小标签/路径/模型名等区域默认跟随界面字体 |
-| 新对话目录 | 新建对话时容易回到重新选文件夹流程 | 记住上次项目目录，新任务直接进入默认文件夹，并可在输入框下方快速切换 |
-| 发布包 | 需要自行构建或使用原项目发布 | Release 提供 Windows x64 exe / zip 和 SHA256 校验文件 |
-
-## 下载
-
-请到 [GitHub Releases](https://github.com/mistydew/tokenicode-deepseek-alpha/releases/latest) 下载 Windows 便携版：
-
-- `tokenicode-deepseek-alpha-windows-x64.exe`
-- `tokenicode-deepseek-alpha-windows-x64-setup.exe`（Windows x64 安装版）
-
-下载后双击运行即可。首次运行时请按需要配置 CC Switch / DeepSeek API。
-
-## 快速开始
-
-1. 下载 release 里的 Windows exe。
-2. 打开 TOKENICODE。
-3. 在设置里配置 API Provider，或在 Skills 面板里单独配置翻译 API。
-4. 选择项目文件夹，开始对话。
-
-### DeepSeek / CC Switch 模型建议
-
-如果你的网关支持本项目当前的 DeepSeek V4 命名：
-
-| 用途 | 显示名 | 实际 API model |
-| --- | --- | --- |
-| 高质量/复杂任务 | DeepseekV4Pro | `deepseek-v4-pro` |
-| 快速/翻译/轻任务 | DeepseekV4Flash | `deepseek-v4-flash` |
-
-如果你使用 DeepSeek 官方 OpenAI 兼容接口，请以官方实际支持的模型名为准，并在配置里选择 OpenAI 格式。
-
-## Skills 翻译 API 配置
-
-打开右侧 **技能** 面板，点击右上角齿轮按钮：
-
-- `Anthropic` / `OpenAI`：选择接口格式
-- `Base URL`：填写 API 地址，例如 CC Switch 或 DeepSeek 网关地址
-- `API Key`：填写密钥
-- `Model`：建议填写快速模型，例如 `deepseek-v4-flash`
-- `Proxy URL`：可选，通常留空；仅需要代理时填写 `http://127.0.0.1:7890` 这类地址
-
-配置后点击 `译` 即可翻译技能列表。打开 `SKILL.md` 预览时，也可以点击右上角 `译` 翻译正文。
-
-## 本地开发
-
-环境要求：
+### Prerequisites
 
 - Node.js
 - pnpm
 - Rust
-- Tauri 2 构建环境
-- Windows 打包需要 MSVC Build Tools
+- Tauri 2 build environment
+- Windows: MSVC Build Tools
 
-常用命令：
+### Commands
 
 ```powershell
 pnpm install
-pnpm build
-pnpm tauri build
+pnpm build          # Type check + Vite production build
+pnpm tauri dev      # Dev server + Tauri app
+pnpm tauri build    # Production app
 ```
 
-在本机使用 MSVC 环境构建的示例：
+### Windows MSVC Build
 
 ```powershell
-cmd /c "call C:\BuildTools\VC\Auxiliary\Build\vcvars64.bat && set PATH=C:\Users\Administrator\.cargo\bin;%PATH% && cd /d D:\TOKENICODE\TOKENICODE-src && pnpm tauri build"
+cmd /c "call C:\BuildTools\VC\Auxiliary\Build\vcvars64.bat && set PATH=%USERPROFILE%\.cargo\bin;%PATH% && cd /d D:\TOKENICODE\TOKENICODE-src && pnpm tauri build"
 ```
 
-如果没有 Tauri 签名私钥，安装包签名阶段可能失败，但 `src-tauri\target\release\tokenicode.exe` 仍会生成。
+Without a Tauri signing private key, the installer signing step will fail, but `src-tauri\target\release\tokenicode.exe` will still be produced.
 
-## 与原 TOKENICODE 的关系
+## Relationship to TOKENICODE
 
-这是 TOKENICODE 的个人魔改版，主要目标是让本机 DeepSeek / CC Switch / Codex skills 工作流更顺手。核心桌面框架、Claude Code GUI 思路和大量基础功能来自原 TOKENICODE 项目。
+This is a personal fork of [TOKENICODE](https://github.com/yiliqi78/TOKENICODE) by TinyZ / yiliqi78, focused on DeepSeek / CC Switch / Codex skills workflows. The core desktop framework, Claude Code GUI design, and most base features come from the original project.
 
-本项目会在源码和文档中保留原项目许可声明。若你需要原版功能、跨平台安装包或官方更新，请优先参考原项目：
+For the original feature set, cross-platform installers, or official updates, see:
+- [github.com/yiliqi78/TOKENICODE](https://github.com/yiliqi78/TOKENICODE)
 
-- 原项目仓库：[https://github.com/yiliqi78/TOKENICODE](https://github.com/yiliqi78/TOKENICODE)
+## License
 
-## 许可证
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-本项目沿用原项目的 **Apache License 2.0**。
+## Acknowledgments
 
-请阅读：
+- [TOKENICODE](https://github.com/yiliqi78/TOKENICODE) — the upstream project
+- TinyZ / yiliqi78 — TOKENICODE author
+- [Tauri](https://tauri.app) — desktop app framework
+- [React](https://react.dev) — UI framework
+- Claude Code / Codex skills ecosystem
 
-- [LICENSE](LICENSE)
-- [NOTICE](NOTICE)
+---
 
-## 致谢
+<div align="center">
 
-- [TOKENICODE](https://github.com/yiliqi78/TOKENICODE)：本项目的基础来源
-- TinyZ / yiliqi78：TOKENICODE 原作者
-- [Tauri](https://tauri.app)：桌面应用框架
-- [React](https://react.dev)：前端 UI 框架
-- Claude Code / Codex skills 生态：提供 agent 工作流基础
+**If you find this useful, please give it a ⭐!**
+
+</div>
