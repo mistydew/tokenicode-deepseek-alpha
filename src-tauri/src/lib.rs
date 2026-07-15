@@ -1,5 +1,6 @@
 mod commands;
 mod protocol;
+mod cc_switch;
 
 use commands::{ManagedProcess, ProcessManager, SessionInfo, StartSessionParams, StdinManager};
 // protocol module kept for ControlRequest (send_control_request) and tests
@@ -1262,6 +1263,18 @@ fn resolve_provider_env(
     let extra_args: Vec<String> = vec![];
 
     Ok((env, keys_to_remove, extra_args))
+}
+
+/// Import providers from cc-switch configuration
+#[tauri::command]
+async fn import_cc_switch_providers() -> Result<Vec<cc_switch::TokenicodeProvider>, String> {
+    cc_switch::get_tokenicode_providers()
+}
+
+/// Check if cc-switch database is available
+#[tauri::command]
+async fn check_cc_switch_available() -> bool {
+    cc_switch::find_cc_switch_db().is_some()
 }
 
 #[tauri::command]
@@ -7863,6 +7876,8 @@ pub fn run() {
             load_providers,
             save_providers,
             test_provider_connection,
+            import_cc_switch_providers,
+            check_cc_switch_available,
             respond_permission,
             send_control_request,
         ])

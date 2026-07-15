@@ -12,6 +12,8 @@ interface AddProviderMenuProps {
   onAddFromPreset: (preset: PresetProvider) => void;
   onAddCustom: () => void;
   onImport: () => void;
+  onImportCCSwitch?: () => void;
+  ccSwitchAvailable?: boolean;
 }
 
 export function AddProviderMenu({
@@ -22,6 +24,8 @@ export function AddProviderMenu({
   onAddFromPreset,
   onAddCustom,
   onImport,
+  onImportCCSwitch,
+  ccSwitchAvailable = false,
 }: AddProviderMenuProps) {
   const t = useT();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -129,6 +133,19 @@ export function AddProviderMenu({
           </svg>
           {t('provider.importFile')}
         </button>
+        {ccSwitchAvailable && onImportCCSwitch && (
+          <button
+            onClick={() => { onImportCCSwitch(); onClose(); }}
+            className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[13px]
+              text-text-muted hover:bg-bg-secondary transition-smooth"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M8 2v6M4 8l4 4 4-4M2 12v2a2 2 0 002 2h8a2 2 0 002-2v-2" />
+            </svg>
+            同步 cc-switch 配置
+          </button>
+        )}
       </div>
     </div>,
     document.body,

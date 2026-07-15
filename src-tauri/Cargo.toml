@@ -14,7 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["devtools"] }
+tauri = { version = "2", features = ["devtools", "macos-private-api"] }
 tauri-plugin-opener = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
@@ -37,6 +37,8 @@ tar = "0.4"
 zip = "2"
 sha2 = "0.10"
 aes-gcm = "0.10"
+rusqlite = { version = "0.32", features = ["bundled"] }
+chrono = "0.4"
 
 [dev-dependencies]
 tempfile = "3"

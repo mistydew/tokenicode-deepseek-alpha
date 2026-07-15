@@ -3,8 +3,6 @@ import type { ModelId } from '../stores/settingsStore';
 import {
   DEEPSEEK_V4_FLASH,
   DEEPSEEK_V4_PRO,
-  normalizeDeepSeekModelName,
-  normalizeProviderModelName,
 } from './deepseek-models';
 
 const TIER_MAP: Record<string, 'opus' | 'sonnet' | 'haiku'> = {
@@ -28,19 +26,24 @@ export type ModelResolution =
 export function resolveModelOrError(selectedModel: string): ModelResolution {
   const provider = useProviderStore.getState().getActive();
   if (!provider) {
-    const normalized = normalizeDeepSeekModelName(selectedModel);
-    return {
-      ok: true,
-      model: normalized === selectedModel ? DEEPSEEK_V4_FLASH : normalized,
-    };
+    // Inherit mode (no active provider): pass the selected model through
+    // verbatim. The CLI/subprocess is expected to resolve it from the
+    // upstream environment (CC-Switch, ANTHROPIC_DEFAULT_*_MODEL, etc.).
+    // We must NOT inject an internal alias like DEEPSEEK_V4_FLASH — that
+    // string is not a real upstream model ID and causes 400 [1211] errors.
+    return { ok: true, model: selectedModel };
   }
 
   // 1. Check direct model ID mapping first (e.g. 'claude-opus-4-6-1m' → 'glm-5-1m')
+  // Pass the user-entered providerModel through verbatim — the value they typed
+  // IS the upstream API model ID. UI-only normalization (display labels like
+  // "DeepseekV4Pro") must not mutate the request payload, otherwise the CLI
+  // forwards a string the upstream doesn't know → 400 [1211] 模型不存在.
   const directMapping = provider.modelMappings.find(
     (m) => m.tier === selectedModel && m.providerModel,
   );
   if (directMapping?.providerModel) {
-    return { ok: true, model: normalizeProviderModelName(directMapping.providerModel) };
+    return { ok: true, model: directMapping.providerModel.trim() };
   }
 
   // 2. Fall back to tier mapping
@@ -55,7 +58,7 @@ export function resolveModelOrError(selectedModel: string): ModelResolution {
     ) || provider.modelMappings.find((m) => m.providerModel);
 
     if (fallback?.providerModel) {
-      return { ok: true, model: normalizeProviderModelName(fallback.providerModel) };
+      return { ok: true, model: fallback.providerModel.trim() };
     }
 
     return { ok: false, reason: 'no_mapping', tier: selectedModel, providerName: provider.name };
@@ -67,7 +70,7 @@ export function resolveModelOrError(selectedModel: string): ModelResolution {
   if (!mapping?.providerModel) {
     return { ok: false, reason: 'no_mapping', tier, providerName: provider.name };
   }
-  return { ok: true, model: normalizeProviderModelName(mapping.providerModel) };
+  return { ok: true, model: mapping.providerModel.trim() };
 }
 
 /**
@@ -87,8 +90,11 @@ export function resolveModelForProvider(selectedModel: string): string {
 }
 
 export function supportsDeepSeekThinking(model: string): boolean {
-  const normalized = normalizeProviderModelName(model);
-  return normalized === DEEPSEEK_V4_PRO || normalized === DEEPSEEK_V4_FLASH;
+  // Direct string match on the canonical deepseek-v4-* IDs.
+  // normalizeProviderModelName is now a no-op (see deepseek-models.ts), so
+  // legacy "DeepseekV4Pro" labels are not auto-recognized here; that is
+  // intentional — only upstream model IDs flow through request paths.
+  return model === DEEPSEEK_V4_PRO || model === DEEPSEEK_V4_FLASH;
 }
 
 export function resolveThinkingLevelForProvider(selectedModel: string, requestedLevel: string): string {

@@ -2,6 +2,7 @@ import { useCallback, useRef, useEffect, useState } from 'react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useFileStore } from '../../stores/fileStore';
 import { FilePreview } from '../files/FilePreview';
+import { WindowControls } from './WindowControls';
 
 interface AppShellProps {
   sidebar: React.ReactNode;
@@ -206,11 +207,19 @@ export function AppShell({ sidebar, main, secondary }: AppShellProps) {
 
   return (
     <div className="flex h-full w-full overflow-hidden gradient-bg">
-      {/* Drag region — data-tauri-drag-region handles both drag and double-click-to-maximize natively */}
+      {/* Top strip — drag region spans the full width; the Apple-style
+          window controls are rendered as a separate sibling above it so
+          that button clicks do NOT reach the drag-region ancestor
+          (Tauri walks up from the click target looking for
+          data-tauri-drag-region, which would otherwise swallow the
+          close / minimize / maximize clicks). */}
       <div
         data-tauri-drag-region
         className="fixed top-0 left-0 right-0 h-[28px] z-50"
       />
+      <div className="fixed top-0 left-0 z-[60] h-[28px] flex items-center">
+        <WindowControls />
+      </div>
 
       {/* Sidebar — animates to w-0 when hidden or preview mode */}
       <div

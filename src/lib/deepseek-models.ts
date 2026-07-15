@@ -26,14 +26,14 @@ export function normalizeDeepSeekModelName(model: string | undefined | null): st
 
 export function normalizeProviderModelName(model: string | undefined | null): string {
   if (!model) return '';
-
-  const trimmed = model.trim();
-  const compact = trimmed.toLowerCase().replace(/[\s_.()[\]-]/g, '');
-
-  if (compact.includes('deepseekv4pro')) return DEEPSEEK_V4_PRO;
-  if (compact.includes('deepseekv4flash')) return DEEPSEEK_V4_FLASH;
-
-  return trimmed;
+  // Display-only legacy alias. The previous implementation rewrote
+  // "DeepseekV4Pro"/"DeepseekV4Flash" tokens to "deepseek-v4-pro"/
+  // "deepseek-v4-flash" — that string was forwarded to the upstream API,
+  // which doesn't recognize it and returned 400 [1211] 模型不存在.
+  // Display labels should go through `displayProviderModelName` instead;
+  // this function is now a pass-through so it can never corrupt a request
+  // payload again.
+  return model.trim();
 }
 
 export function displayDeepSeekModelName(model: string | undefined | null): string {

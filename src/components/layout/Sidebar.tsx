@@ -64,7 +64,7 @@ export function Sidebar() {
   // Window dragging handled via CSS -webkit-app-region: drag on the top strip
 
   return (
-    <div className="flex flex-col h-full pt-8 pb-4">
+    <div className="flex flex-col h-full pt-7 pb-4">
       {/* Logo area */}
       <div
         className="flex items-center justify-between mb-6 px-5 cursor-default">

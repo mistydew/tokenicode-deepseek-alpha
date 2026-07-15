@@ -19,11 +19,14 @@ import { t } from '../lib/i18n';
 // Each pattern maps to a friendly i18n key. Matched errors show the friendly
 // message as primary text with raw error in a collapsible details block.
 // Unmatched errors get a generic fallback + raw details.
+//
+// Known upstream error codes (e.g. 1211 from tokenicode backend) get a
+// remediation hint pointing to the relevant settings page.
 const ERROR_CATEGORIES: ReadonlyArray<{ pattern: RegExp; i18nKey: string }> = [
   { pattern: /40[13]|unauthorized|invalid.*key|api.key.*invalid/i, i18nKey: 'error.invalidKey' },
   { pattern: /429|rate.limit|too.many.request/i, i18nKey: 'error.rateLimit' },
   { pattern: /quota|insufficient.*balance|credit|billing/i, i18nKey: 'error.quotaExceeded' },
-  { pattern: /model.*not.found|invalid.*model|not_found.*model/i, i18nKey: 'error.modelNotFound' },
+  { pattern: /model.*not.found|invalid.*model|not_found.*model|1211/i, i18nKey: 'error.modelNotFound' },
   { pattern: /timeout|timed?.out|ECONNREFUSED|ECONNRESET|ENOTFOUND/i, i18nKey: 'error.networkError' },
   { pattern: /network|fetch.failed|dns/i, i18nKey: 'error.networkError' },
   { pattern: /permission.denied|operation.not.permitted|access.denied|forbidden/i, i18nKey: 'error.permissionDenied' },
@@ -32,11 +35,18 @@ const ERROR_CATEGORIES: ReadonlyArray<{ pattern: RegExp; i18nKey: string }> = [
   { pattern: /token.*limit|context.*length|too.long/i, i18nKey: 'error.tokenLimit' },
 ];
 
+const REMEDIATION_HINTS: ReadonlyArray<{ pattern: RegExp; i18nKey: string }> = [
+  { pattern: /1211|model.*not.found|not_found.*model|invalid.*model/i, i18nKey: 'error.modelNotFoundHint' },
+];
+
 export function formatErrorForUser(raw: string): string {
   if (!raw || raw.length < 10) return raw;
   const match = ERROR_CATEGORIES.find((c) => c.pattern.test(raw));
   const friendly = match ? t(match.i18nKey) : t('error.genericFallback');
-  return `${friendly}\n\n<details>\n<summary>${t('error.showDetails')}</summary>\n\n\`\`\`\n${raw}\n\`\`\`\n\n</details>`;
+  const hintMatch = REMEDIATION_HINTS.find((c) => c.pattern.test(raw));
+  const hint = hintMatch ? t(hintMatch.i18nKey) : '';
+  const main = hint ? `${friendly}\n\n${hint}` : friendly;
+  return `${main}\n\n<details>\n<summary>${t('error.showDetails')}</summary>\n\n\`\`\`\n${raw}\n\`\`\`\n\n</details>`;
 }
 
 // --- Streaming text buffer (rAF-throttled + interval fallback, per-stdinId) ---

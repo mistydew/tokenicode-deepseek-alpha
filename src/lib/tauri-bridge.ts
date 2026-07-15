@@ -266,6 +266,19 @@ export interface ProvidersFile {
   }[];
 }
 
+/** cc-switch provider format */
+export interface CCSwitchProvider {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiFormat: string;
+  apiKey: string;
+  modelMappings: { tier: string; providerModel: string }[];
+  extra_env?: Record<string, string>;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface UnifiedCommand {
   name: string;
   description: string;
@@ -578,6 +591,14 @@ export const bridge = {
 
   testProviderConnection: (baseUrl: string, apiFormat: string, apiKey: string, model: string, proxyUrl?: string) =>
     invoke<ConnectionTestResult>('test_provider_connection', { baseUrl, apiFormat, apiKey, model, proxyUrl: proxyUrl || null }),
+
+  /** Import providers from cc-switch configuration */
+  importCCSwitchProviders: () =>
+    invoke<CCSwitchProvider[]>('import_cc_switch_providers'),
+
+  /** Check if cc-switch database is available */
+  checkCCSwitchAvailable: () =>
+    invoke<boolean>('check_cc_switch_available'),
 
 
   // --- SDK Control Protocol ---

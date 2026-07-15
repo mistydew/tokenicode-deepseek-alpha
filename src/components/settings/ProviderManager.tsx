@@ -27,6 +27,8 @@ export function ProviderManager({ alwaysExpanded = false }: { alwaysExpanded?: b
   const [importError, setImportError] = useState('');
   const [cardTestStatuses, setCardTestStatuses] = useState<Record<string, CardTestStatus>>({});
   const [cardTestTimes, setCardTestTimes] = useState<Record<string, number>>({});
+  const [ccSwitchAvailable, setCCSwitchAvailable] = useState(false);
+  const [ccSyncLoading, setCCSyncLoading] = useState(false);
 
   const addBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -34,6 +36,8 @@ export function ProviderManager({ alwaysExpanded = false }: { alwaysExpanded?: b
     if (!loaded) {
       useProviderStore.getState().load();
     }
+    // Check if cc-switch is available
+    bridge.checkCCSwitchAvailable().then(setCCSwitchAvailable).catch(() => setCCSwitchAvailable(false));
   }, [loaded]);
 
   const activeProvider = providers.find((p) => p.id === activeProviderId);
@@ -81,6 +85,41 @@ export function ProviderManager({ alwaysExpanded = false }: { alwaysExpanded?: b
       setEditingId(last.id);
     }
   }, [addProvider, setActive]);
+
+  const handleImportCCSwitch = useCallback(async () => {
+    setCCSyncLoading(true);
+    setImportError('');
+    try {
+      const ccProviders = await bridge.importCCSwitchProviders();
+
+      // Add each provider from cc-switch
+      ccProviders.forEach((ccProvider) => {
+        // Check if provider already exists (by baseUrl + apiKey combination)
+        const exists = providers.some(
+          (p) => p.baseUrl === ccProvider.baseUrl && p.apiKey === ccProvider.apiKey
+        );
+
+        if (!exists) {
+          addProvider({
+            name: ccProvider.name,
+            baseUrl: ccProvider.baseUrl,
+            apiFormat: ccProvider.apiFormat as 'anthropic' | 'openai',
+            apiKey: ccProvider.apiKey,
+            modelMappings: ccProvider.modelMappings,
+            extra_env: ccProvider.extra_env,
+          });
+        }
+      });
+
+      setImportStatus('success');
+      setTimeout(() => setImportStatus('idle'), 3000);
+    } catch (e) {
+      setImportError(String(e));
+      setTimeout(() => setImportError(''), 5000);
+    } finally {
+      setCCSyncLoading(false);
+    }
+  }, [addProvider, providers]);
 
   const handleImport = useCallback(async () => {
     const { open: openDialog } = await import('@tauri-apps/plugin-dialog');
@@ -294,8 +333,11 @@ export function ProviderManager({ alwaysExpanded = false }: { alwaysExpanded?: b
               {t('provider.addProvider')}
             </button>
 
+            {ccSyncLoading && (
+              <span className="text-xs text-text-tertiary">同步中...</span>
+            )}
             {importStatus === 'success' && (
-              <span className="text-xs text-green-500">{t('provider.importSuccess')}</span>
+              <span className="text-xs text-green-500">{t('provider.ccSwitchSyncSuccess')}</span>
             )}
             {importError && (
               <span className="text-xs text-red-400 truncate flex-1" title={importError}>
@@ -312,6 +354,8 @@ export function ProviderManager({ alwaysExpanded = false }: { alwaysExpanded?: b
             onAddFromPreset={handleAddFromPreset}
             onAddCustom={handleAddCustom}
             onImport={handleImport}
+            onImportCCSwitch={handleImportCCSwitch}
+            ccSwitchAvailable={ccSwitchAvailable}
           />
         </div>
       )}
