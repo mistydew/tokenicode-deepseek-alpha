@@ -28,6 +28,8 @@ import { AiAvatar } from '../shared/AiAvatar';
 import { displayDeepSeekModelName } from '../../lib/deepseek-models';
 import { parseTurns, type Turn } from '../../lib/turns';
 
+const MESSAGE_RENDER_BATCH = 200;
+
 /** Shared plan panel toggle — used by ChatPanel (panel) and InputBar (button) */
 export const usePlanPanelStore = create<{
   open: boolean;
@@ -563,6 +565,25 @@ export function ChatPanel() {
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
   const sessions = useSessionStore((s) => s.sessions);
   const isFilePreviewMode = !!useFileStore((s) => s.selectedFile);
+  const [messageRenderWindow, setMessageRenderWindow] = useState<{
+    sessionId: string | null;
+    limit: number;
+  }>({ sessionId: selectedSessionId, limit: MESSAGE_RENDER_BATCH });
+  const messageRenderLimit = messageRenderWindow.sessionId === selectedSessionId
+    ? messageRenderWindow.limit
+    : MESSAGE_RENDER_BATCH;
+  const hiddenMessageCount = Math.max(0, messages.length - messageRenderLimit);
+  const visibleMessages = useMemo(
+    () => messages.slice(hiddenMessageCount),
+    [messages, hiddenMessageCount],
+  );
+
+  useEffect(() => {
+    setMessageRenderWindow({
+      sessionId: selectedSessionId,
+      limit: MESSAGE_RENDER_BATCH,
+    });
+  }, [selectedSessionId]);
 
   // Agent activity for floating button badge
   const agents = useAgentStore((s) => s.agents);
@@ -601,23 +622,31 @@ export function ChatPanel() {
   const displayItems = useMemo<DisplayItem[]>(() => {
     const items: DisplayItem[] = [];
     let i = 0;
-    while (i < messages.length) {
+    while (i < visibleMessages.length) {
       // Detect runs of consecutive tool_use messages
-      if (messages[i].type === 'tool_use') {
+      if (visibleMessages[i].type === 'tool_use') {
         let j = i;
-        while (j < messages.length && messages[j].type === 'tool_use') j++;
+        while (j < visibleMessages.length && visibleMessages[j].type === 'tool_use') j++;
         const runLength = j - i;
         if (runLength >= 3) {
-          items.push({ kind: 'tool_group', msgs: messages.slice(i, j), startIdx: i });
+          items.push({
+            kind: 'tool_group',
+            msgs: visibleMessages.slice(i, j),
+            startIdx: hiddenMessageCount + i,
+          });
           i = j;
           continue;
         }
       }
-      items.push({ kind: 'message', msg: messages[i], idx: i });
+      items.push({
+        kind: 'message',
+        msg: visibleMessages[i],
+        idx: hiddenMessageCount + i,
+      });
       i++;
     }
     return items;
-  }, [messages]);
+  }, [visibleMessages, hiddenMessageCount]);
 
   // Collect plan review messages from the session (created by ExitPlanMode)
   const planMessages = useMemo(
@@ -641,7 +670,7 @@ export function ChatPanel() {
   const showScrollBtnRef = useRef(false);
   const scrollRafRef = useRef(0);
   const [activeTurnId, setActiveTurnId] = useState<string | undefined>();
-  const turns = useMemo(() => parseTurns(messages), [messages]);
+  const turns = useMemo(() => parseTurns(visibleMessages), [visibleMessages]);
 
   const setMessageNode = useCallback((id: string) => (node: HTMLDivElement | null) => {
     if (node) {
@@ -860,6 +889,21 @@ export function ChatPanel() {
           <EmptyReadyState />
         ) : (
           <div className="max-w-3xl mx-auto">
+            {hiddenMessageCount > 0 && (
+              <div className="flex justify-center mb-5">
+                <button
+                  onClick={() => setMessageRenderWindow({
+                    sessionId: selectedSessionId,
+                    limit: Math.min(messages.length, messageRenderLimit + MESSAGE_RENDER_BATCH),
+                  })}
+                  className="px-3 py-1.5 rounded-full border border-border-subtle
+                    bg-bg-secondary/50 text-xs text-text-muted
+                    hover:bg-bg-secondary hover:text-text-primary transition-smooth"
+                >
+                  {t('chat.loadEarlier')} ({hiddenMessageCount})
+                </button>
+              </div>
+            )}
             {displayItems.map((item, displayIdx) => {
               // Determine spacing based on item type
               const isCompact = item.kind === 'tool_group'

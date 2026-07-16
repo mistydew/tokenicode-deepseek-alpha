@@ -1,14 +1,14 @@
 {
-    "version": "1.0.3",
-    "notes": "Auto-compact reliability improvements: verified 20% context drop detection, CompactionState lifecycle tracking, session compaction restore, model name protection from synthetic overwrites.",
-    "pub_date": "2026-07-14T17:10:00Z",
+    "version": "1.0.4",
+    "notes": "Long-session stability improvements: historical messages are restored in one batch, only the latest 200 messages render initially with on-demand loading for older content, and native window close no longer depends on a responsive WebView.",
+    "pub_date": "2026-07-16T18:51:12Z",
     "platforms": {
         "windows-x86_64-nsis": {
-            "url": "https://github.com/mistydew/tokenicode-deepseek-alpha/releases/download/v1.0.3/tokenicode-deepseek-alpha-v1.0.3-windows-x64-setup.exe",
+            "url": "https://github.com/mistydew/tokenicode-deepseek-alpha/releases/download/v1.0.4/tokenicode-deepseek-alpha-v1.0.4-windows-x64-setup.exe",
             "signature": ""
         },
         "windows-x86_64": {
-            "url": "https://github.com/mistydew/tokenicode-deepseek-alpha/releases/download/v1.0.3/tokenicode-deepseek-alpha-v1.0.3-windows-x64.exe",
+            "url": "https://github.com/mistydew/tokenicode-deepseek-alpha/releases/download/v1.0.4/tokenicode-deepseek-alpha-v1.0.4-windows-x64.exe",
             "signature": ""
         }
     }

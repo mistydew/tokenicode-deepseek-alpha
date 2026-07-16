@@ -14,7 +14,6 @@ import type { ColorTheme, FontFamily, Theme } from './stores/settingsStore';
 import { useFileStore } from './stores/fileStore';
 import { useChatStore } from './stores/chatStore';
 import { useSessionStore } from './stores/sessionStore';
-import { APP_NAME } from './lib/edition';
 import { useAgentStore } from './stores/agentStore';
 import { bridge, onFileChange } from './lib/tauri-bridge';
 import { useT } from './lib/i18n';
@@ -104,39 +103,6 @@ function App() {
     checkCliUpdate();
     const interval = setInterval(checkCliUpdate, 30 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
-
-  // Confirm before closing the window (red X / Cmd+Q)
-  const closePendingRef = useRef(false);
-  const tRef = useRef(t);
-  tRef.current = t;
-
-  useEffect(() => {
-    let unlisten: (() => void) | null = null;
-    import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
-      const win = getCurrentWindow();
-      win.onCloseRequested(async (event) => {
-        if (closePendingRef.current) { event.preventDefault(); return; }
-        event.preventDefault();
-        closePendingRef.current = true;
-        try {
-          const { ask } = await import('@tauri-apps/plugin-dialog');
-          const confirmed = await ask(tRef.current('confirm.exit'), {
-            title: APP_NAME,
-            kind: 'warning',
-            okLabel: tRef.current('common.confirm'),
-            cancelLabel: tRef.current('common.cancel'),
-          });
-          if (confirmed) {
-            const { exit } = await import('@tauri-apps/plugin-process');
-            await exit(0);
-          }
-        } finally {
-          closePendingRef.current = false;
-        }
-      }).then((fn) => { unlisten = fn; });
-    });
-    return () => { unlisten?.(); };
   }, []);
 
   // TK-329: On app startup (incl. browser refresh), detect and kill orphaned backend processes.

@@ -203,6 +203,8 @@ interface ChatState {
 
   // --- Tab-level operations (all take tabId) ---
   addMessage: (tabId: string, message: ChatMessage) => void;
+  /** Replace the full message list in one update (used for historical session loading). */
+  setMessages: (tabId: string, messages: ChatMessage[]) => void;
   updateMessage: (tabId: string, id: string, updates: Partial<ChatMessage>) => void;
   updatePartialMessage: (tabId: string, text: string) => void;
   updatePartialThinking: (tabId: string, text: string) => void;
@@ -282,6 +284,21 @@ function createTab(tabId: string): TabSession {
   return { ...EMPTY_TAB, tabId };
 }
 
+function mergeMessagesById(messages: ChatMessage[]): ChatMessage[] {
+  const merged: ChatMessage[] = [];
+  const indexById = new Map<string, number>();
+  for (const message of messages) {
+    const existingIndex = indexById.get(message.id);
+    if (existingIndex === undefined) {
+      indexById.set(message.id, merged.length);
+      merged.push(message);
+    } else {
+      merged[existingIndex] = { ...merged[existingIndex], ...message };
+    }
+  }
+  return merged;
+}
+
 /** Maximum number of tabs kept in memory. LRU eviction applies to idle tabs. */
 const MAX_CACHE = 8;
 
@@ -349,6 +366,18 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         // explicitly by clearPartial() in the result/process_exit handlers and
         // in the assistant message handler when a text block supersedes streaming.
       });
+      return result ?? {};
+    }),
+
+  setMessages: (tabId, messages) =>
+    set((state) => {
+      const result = updateTab(state.tabs, tabId, (tab) => ({
+        ...tab,
+        messages: mergeMessagesById(messages),
+        isStreaming: false,
+        partialText: '',
+        partialThinking: '',
+      }));
       return result ?? {};
     }),
 

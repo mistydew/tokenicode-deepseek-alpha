@@ -4756,7 +4756,7 @@ dependencies = [
 
 [[package]]
 name = "tokenicode"
-version = "1.0.2"
+version = "1.0.4"
 dependencies = [
  "base64 0.22.1",
  "cocoa",

@@ -338,7 +338,7 @@ export function ConversationList() {
     // Load from disk
     useChatStore.getState().ensureTab(sessionId);
     useSettingsStore.getState().setWorkingDirectory(resolveProjectPath(projectOrDir));
-    const { clearMessages, addMessage, setSessionStatus, setSessionMeta } = useChatStore.getState();
+    const { clearMessages, addMessage, setMessages, setSessionStatus, setSessionMeta } = useChatStore.getState();
     const agentActions = useAgentStore.getState();
     clearMessages(sessionId);
     agentActions.clearAgents();
@@ -367,17 +367,9 @@ export function ConversationList() {
         agentActions.upsertAgent(agent);
       }
 
-      // Apply messages
-      for (const msg of messages) {
-        if (msg.toolResultContent) {
-          // For messages that have tool results, add the base message first, then update
-          const { toolResultContent, ...baseMsg } = msg;
-          addMessage(sessionId, baseMsg);
-          useChatStore.getState().updateMessage(sessionId, msg.id, { toolResultContent });
-        } else {
-          addMessage(sessionId, msg);
-        }
-      }
+      // Apply the historical conversation in one store update. Adding hundreds of
+      // messages one-by-one repeatedly re-rendered the WebView and could freeze it.
+      setMessages(sessionId, messages);
 
       setSessionStatus(sessionId, 'completed');
     } catch (err) {

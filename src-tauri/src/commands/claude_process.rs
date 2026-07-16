@@ -66,6 +66,10 @@ impl StdinManager {
         let mut map = self.handles.lock().await;
         map.remove(id);
     }
+
+    pub async fn clear(&self) {
+        self.handles.lock().await.clear();
+    }
 }
 
 impl ProcessManager {
@@ -89,6 +93,22 @@ impl ProcessManager {
                 eprintln!(
                     "[TOKENICODE] Failed to kill process for session {}: {}",
                     id, e
+                );
+            }
+        }
+    }
+
+    pub async fn kill_all(&self) {
+        let processes = {
+            let mut map = self.processes.lock().await;
+            map.drain().map(|(_, process)| process).collect::<Vec<_>>()
+        };
+        for process in processes {
+            let mut managed = process.lock().await;
+            if let Err(e) = managed.child.start_kill() {
+                eprintln!(
+                    "[TOKENICODE] Failed to kill process for session {} during shutdown: {}",
+                    managed.session_id, e
                 );
             }
         }

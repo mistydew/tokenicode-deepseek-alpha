@@ -19,6 +19,38 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.4',
+    date: '2026-07-17',
+    highlights: {
+      zh: ['修复长对话卡死与窗口无法关闭'],
+      en: ['Fixed long-session freezes and unresponsive window closing'],
+    },
+    categories: [
+      {
+        label: { zh: '修复', en: 'Fixed' },
+        items: {
+          zh: [
+            '历史会话改为一次性批量恢复，避免每条消息都触发重复渲染',
+            '默认仅渲染最近 200 条消息，可按每批 200 条加载更早内容',
+            '窗口关闭不再依赖 WebView 响应，退出时清理托管 CLI 子进程',
+          ],
+          en: [
+            'Historical sessions are restored in one batch instead of rendering after every message',
+            'Only the latest 200 messages render initially, with older content loaded in 200-message batches',
+            'Window closing no longer depends on the WebView, and managed CLI child processes are cleaned up on exit',
+          ],
+        },
+      },
+      {
+        label: { zh: '改进', en: 'Improved' },
+        items: {
+          zh: ['减少工具调用分组在长会话中的无效重复渲染'],
+          en: ['Reduced redundant tool-group renders in long sessions'],
+        },
+      },
+    ],
+  },
+  {
     version: '0.10.0',
     date: '2026-04-05',
     highlights: {

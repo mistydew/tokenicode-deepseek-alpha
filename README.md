@@ -96,6 +96,12 @@ This fork keeps all TOKENICODE desktop workflow features and adds DeepSeek / CC 
 
 Get the latest Windows x64 build from [GitHub Releases](https://github.com/mistydew/tokenicode-deepseek-alpha/releases/latest):
 
+### v1.0.4 stability update
+
+- Long histories now restore in one batch instead of triggering a render for every message.
+- Chat initially renders the latest 200 messages; older messages can be loaded in 200-message batches.
+- Closing the desktop window no longer waits for the WebView, and managed CLI child processes are cleaned up during exit.
+
 | File | Description |
 |------|-------------|
 | `tokenicode-deepseek-alpha-v*-windows-x64.exe` | Portable (no install required) |
