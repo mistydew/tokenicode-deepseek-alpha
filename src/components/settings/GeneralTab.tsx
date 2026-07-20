@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback, useState, type ChangeEvent } from 'react';
 import {
   useSettingsStore,
   MODEL_OPTIONS,
@@ -329,6 +329,12 @@ export function GeneralTab() {
         </div>
       </div>
 
+      {/* Custom Background Image */}
+      <div>
+        <h3 className="text-[13px] font-medium text-text-primary mb-3">自定义聊天背景</h3>
+        <CustomBackgroundSection />
+      </div>
+
       {/* Settings row */}
       <div className="flex items-start gap-8 flex-wrap">
         {/* Appearance */}
@@ -533,6 +539,149 @@ export function GeneralTab() {
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ─── Custom Background Section ─── */
+function CustomBackgroundSection() {
+  const customBgImage = useSettingsStore((s) => s.customBgImage);
+  const customBgSize = useSettingsStore((s) => s.customBgSize);
+  const customBgPositionX = useSettingsStore((s) => s.customBgPositionX);
+  const customBgPositionY = useSettingsStore((s) => s.customBgPositionY);
+  const glassBlur = useSettingsStore((s) => s.glassBlur);
+  const glassOpacity = useSettingsStore((s) => s.glassOpacity);
+  const setCustomBgImage = useSettingsStore((s) => s.setCustomBgImage);
+  const setCustomBgSize = useSettingsStore((s) => s.setCustomBgSize);
+  const setCustomBgPositionX = useSettingsStore((s) => s.setCustomBgPositionX);
+  const setCustomBgPositionY = useSettingsStore((s) => s.setCustomBgPositionY);
+  const setGlassBlur = useSettingsStore((s) => s.setGlassBlur);
+  const setGlassOpacity = useSettingsStore((s) => s.setGlassOpacity);
+  const clearCustomBg = useSettingsStore((s) => s.clearCustomBg);
+  const bgInputRef = useRef<HTMLInputElement>(null);
+
+  const handleBgUpload = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCustomBgImage(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }, [setCustomBgImage]);
+
+  return (
+    <div className="space-y-3">
+      {/* Upload / Preview */}
+      <div className="flex items-start gap-4">
+        <button
+          onClick={() => bgInputRef.current?.click()}
+          className={`relative rounded-xl border-2 border-dashed transition-smooth overflow-hidden flex flex-col items-center justify-center gap-1.5 hover:bg-bg-secondary
+            ${customBgImage
+              ? 'border-accent/40 w-36 h-24'
+              : 'border-border-subtle hover:border-accent/30 w-36 h-24'
+            }`}
+        >
+          {customBgImage ? (
+            <>
+              <img src={customBgImage} alt="" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100
+                transition-smooth flex items-center justify-center rounded-xl">
+                <span className="text-white text-xs font-medium">更换</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+                className="text-text-tertiary">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+              </svg>
+              <span className="text-xs text-text-muted">上传图片</span>
+            </>
+          )}
+        </button>
+        <input ref={bgInputRef} type="file" accept="image/*" className="hidden"
+          onChange={handleBgUpload} />
+
+        <div className="flex-1">
+          {customBgImage ? (
+            <div className="space-y-2">
+              <span className="text-xs text-text-secondary">已设置自定义背景</span>
+              <button
+                onClick={clearCustomBg}
+                className="px-3 py-1.5 rounded-lg text-xs text-red-500 border border-red-200
+                  hover:bg-red-50 dark:hover:bg-red-900/10 transition-smooth"
+              >
+                移除背景，恢复默认
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-text-tertiary leading-relaxed">
+              上传一张图片作为聊天背景（JPG/PNG/WebP）。图片存储在本地，不会上传。
+            </p>
+          )}
+        </div>
+      </div>
+
+      {customBgImage && (
+        <>
+          {/* Size */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-text-tertiary w-16 shrink-0">背景尺寸</span>
+            <div className="inline-flex rounded-md border border-border-subtle overflow-hidden">
+              {(['cover', 'contain', 'fill'] as const).map((size) => (
+                <button
+                  key={size}
+                  onClick={() => setCustomBgSize(size)}
+                  className={`px-3 py-1 text-xs font-medium border-r border-border-subtle last:border-r-0 transition-smooth
+                    ${customBgSize === size
+                      ? 'bg-accent/10 text-accent'
+                      : 'text-text-muted hover:bg-bg-secondary'
+                    }`}
+                >
+                  {{ cover: '填充', contain: '适应', fill: '拉伸' }[size]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Slider label="水平位置" value={customBgPositionX} onChange={setCustomBgPositionX}
+            left="左" right="右" />
+          <Slider label="垂直位置" value={customBgPositionY} onChange={setCustomBgPositionY}
+            left="上" right="下" />
+          <Slider label="毛玻璃模糊" value={glassBlur} onChange={setGlassBlur}
+            min={0} max={20} unit="px" />
+          <Slider label="面板透明度" value={glassOpacity} onChange={setGlassOpacity}
+            min={30} max={100} unit="%"
+            hint="值越高面板越不透明，文字越清晰" />
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ─── Tiny Slider ─── */
+function Slider({
+  label, value, onChange, min = 0, max = 100, unit = '', left, right, hint,
+}: {
+  label: string; value: number; onChange: (v: number) => void;
+  min?: number; max?: number; unit?: string; left?: string; right?: string; hint?: string;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-text-tertiary">{label}</span>
+        <span className="text-xs font-mono text-text-secondary">{value}{unit}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        {left && <span className="text-[11px] text-text-tertiary shrink-0">{left}</span>}
+        <input type="range" min={min} max={max} value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="flex-1 h-1.5 rounded-full appearance-none bg-bg-tertiary cursor-pointer"
+          style={{ accentColor: 'var(--color-accent)' }} />
+        {right && <span className="text-[11px] text-text-tertiary shrink-0">{right}</span>}
+      </div>
+      {hint && <p className="mt-1 text-[11px] text-text-tertiary">{hint}</p>}
     </div>
   );
 }
