@@ -45,12 +45,14 @@ export const useAgentStore = create<AgentState>()((set, get) => ({
   },
 
   updatePhase: (id, phase, currentTool) => {
-    const next = new Map(get().agents);
-    const agent = next.get(id);
-    if (agent && agent.phase !== 'completed' && agent.phase !== 'error') {
-      next.set(id, { ...agent, phase, currentTool });
-      set({ agents: next });
-    }
+    const agents = get().agents;
+    const agent = agents.get(id);
+    if (!agent || agent.phase === 'completed' || agent.phase === 'error') return;
+    if (agent.phase === phase && agent.currentTool === currentTool) return;
+
+    const next = new Map(agents);
+    next.set(id, { ...agent, phase, currentTool });
+    set({ agents: next });
   },
 
   completeAgent: (id, phase = 'completed') => {

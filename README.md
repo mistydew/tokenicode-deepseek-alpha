@@ -22,6 +22,7 @@
 
 </div>
 
+
 ## What's Different
 
 This fork keeps all TOKENICODE desktop workflow features and adds DeepSeek / CC Switch oriented improvements:
@@ -88,6 +89,7 @@ This fork keeps all TOKENICODE desktop workflow features and adds DeepSeek / CC 
 ### Customization
 
 - Multiple themes: VS Code Dark, clean white, light, dark, system-follow
+- Custom local background images with adjustable glass blur, opacity, size, and position
 - Configurable UI font (Microsoft YaHei, Source Han Sans, LXGW WenKai, monospace)
 - Font size keyboard shortcuts
 - Chinese / English UI (switch in settings)
@@ -95,6 +97,14 @@ This fork keeps all TOKENICODE desktop workflow features and adds DeepSeek / CC 
 ## Download
 
 Get the latest Windows x64 build from [GitHub Releases](https://github.com/mistydew/tokenicode-deepseek-alpha/releases/latest):
+
+### v1.0.5 activity, performance, and security update
+
+- The top bar now shows a persistent live phase indicator: thinking, writing, running a tool, or awaiting input.
+- Streaming text is rendered at a maximum of 20 updates per second instead of once per animation frame, reducing WebView CPU usage during long responses.
+- Repeated Agent phase events no longer publish identical state updates and trigger unnecessary React renders.
+- Provider credentials are encrypted at rest, while file previews use tighter sandbox and content security policies.
+- Custom local chat backgrounds now support glass blur, opacity, size, and position controls.
 
 ### v1.0.4 stability update
 
@@ -191,4 +201,3 @@ Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 **If you find this useful, please give it a ⭐!**
 
 </div>
-

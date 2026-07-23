@@ -45,53 +45,31 @@ export function formatErrorForUser(raw: string): string {
   return `${friendly}\n\n<details>\n<summary>${t('error.showDetails')}</summary>\n\n\`\`\`\n${raw}\n\`\`\`\n\n</details>`;
 }
 
-// --- Streaming text buffer (rAF-throttled + interval fallback, per-stdinId) ---
-// Coalesces rapid text_delta / thinking_delta events into a single state update
-// per animation frame (~60/s), preventing JS main thread starvation from
-// excessive React re-renders when the message list is large.
-//
-// CRITICAL: rAF alone is unreliable — heavy React re-renders can block the
-// rendering pipeline, preventing rAF callbacks from firing. A 200ms setInterval
-// fallback ensures buffered text is always flushed even when rAF is starved.
+// --- Streaming text buffer (fixed-rate throttled, per-stdinId) ---
+// Coalesce rapid text_delta / thinking_delta events and render at most 20 times
+// per second. Re-rendering Markdown and a long message list on every animation
+// frame can otherwise saturate the WebView CPU.
 //
 // TK-329 fix: each session gets its own buffer to prevent cross-contamination
 // when multiple sessions stream concurrently.
 interface _StreamBuffer {
   text: string;
   thinking: string;
-  raf: number;
+  timer: ReturnType<typeof setTimeout> | null;
 }
 const _streamBuffers = new Map<string, _StreamBuffer>();
-
-// Interval fallback: flush any stuck buffers every 200ms
-let _flushIntervalId: ReturnType<typeof setInterval> | null = null;
-
-function _ensureFlushInterval() {
-  if (_flushIntervalId) return;
-  _flushIntervalId = setInterval(() => {
-    for (const [stdinId, buf] of _streamBuffers) {
-      if (buf.text || buf.thinking) {
-        _doFlush(stdinId, buf);
-      }
-    }
-    // Stop interval when no active buffers remain
-    if (_streamBuffers.size === 0 && _flushIntervalId) {
-      clearInterval(_flushIntervalId);
-      _flushIntervalId = null;
-    }
-  }, 200);
-}
+const STREAM_RENDER_INTERVAL_MS = 50;
 
 function _getBuffer(stdinId: string): _StreamBuffer {
   let buf = _streamBuffers.get(stdinId);
   if (!buf) {
-    buf = { text: '', thinking: '', raf: 0 };
+    buf = { text: '', thinking: '', timer: null };
     _streamBuffers.set(stdinId, buf);
   }
   return buf;
 }
 
-/** Core flush logic — shared by rAF callback and interval fallback. */
+/** Apply the buffered stream content to the owning tab. */
 function _doFlush(stdinId: string, buf: _StreamBuffer) {
   if (!buf.text && !buf.thinking) return;
 
@@ -120,13 +98,11 @@ function _doFlush(stdinId: string, buf: _StreamBuffer) {
 
 function _scheduleStreamFlush(stdinId: string) {
   const buf = _getBuffer(stdinId);
-  // Start the interval fallback on first buffer activity
-  _ensureFlushInterval();
-  if (buf.raf) return;
-  buf.raf = requestAnimationFrame(() => {
-    buf.raf = 0;
+  if (buf.timer) return;
+  buf.timer = setTimeout(() => {
+    buf.timer = null;
     _doFlush(stdinId, buf);
-  });
+  }, STREAM_RENDER_INTERVAL_MS);
 }
 
 /** Flush any buffered streaming text immediately (call before clearPartial).
@@ -139,22 +115,18 @@ export function flushStreamBuffer(stdinId?: string) {
     const buf = _streamBuffers.get(id);
     if (!buf) continue;
 
-    if (buf.raf) {
-      cancelAnimationFrame(buf.raf);
-      buf.raf = 0;
+    if (buf.timer) {
+      clearTimeout(buf.timer);
+      buf.timer = null;
     }
     _doFlush(id, buf);
   }
 
-  // Clean up buffers and stop interval when all cleared
+  // Clean up buffers after the stream finishes.
   if (!stdinId) {
     _streamBuffers.clear();
   } else {
     _streamBuffers.delete(stdinId);
-  }
-  if (_streamBuffers.size === 0 && _flushIntervalId) {
-    clearInterval(_flushIntervalId);
-    _flushIntervalId = null;
   }
 }
 

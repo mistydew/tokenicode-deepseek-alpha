@@ -1,6 +1,13 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { create } from 'zustand';
-import { useChatStore, useActiveTab, generateMessageId, type ChatMessage, type SessionMeta } from '../../stores/chatStore';
+import {
+  useChatStore,
+  useActiveTab,
+  generateMessageId,
+  type ActivityStatus,
+  type ChatMessage,
+  type SessionMeta,
+} from '../../stores/chatStore';
 import { MessageBubble } from './MessageBubble';
 import { ToolGroup } from './ToolGroup';
 import { InputBar } from './InputBar';
@@ -231,9 +238,19 @@ function CyclingThinkingText() {
   );
 }
 
+function getActivityLabel(t: (key: string) => string, activityStatus: ActivityStatus): string {
+  if (activityStatus.phase === 'thinking') return t('chat.thinking');
+  if (activityStatus.phase === 'writing') return t('chat.writing');
+  if (activityStatus.phase === 'tool') {
+    return `${t('chat.runningTool')}${activityStatus.toolName ? `: ${activityStatus.toolName}` : ''}`;
+  }
+  if (activityStatus.phase === 'awaiting') return t('chat.awaiting');
+  return t('chat.running');
+}
+
 /** Activity indicator with elapsed time and token count */
 function ActivityIndicator({ activityStatus, sessionMeta }: {
-  activityStatus: { phase: string; toolName?: string };
+  activityStatus: ActivityStatus;
   sessionMeta: {
     turnStartTime?: number;
     outputTokens?: number;
@@ -254,11 +271,7 @@ function ActivityIndicator({ activityStatus, sessionMeta }: {
     return () => clearInterval(id);
   }, []);
 
-  const phaseText = activityStatus.phase === 'thinking' ? t('chat.thinking')
-    : activityStatus.phase === 'writing' ? t('chat.writing')
-    : activityStatus.phase === 'tool' ? `${t('chat.runningTool')}: ${activityStatus.toolName || ''}`
-    : activityStatus.phase === 'awaiting' ? t('chat.awaiting')
-    : t('chat.running');
+  const phaseText = getActivityLabel(t, activityStatus);
 
   const elapsed = sessionMeta.turnStartTime ? formatElapsed(now - sessionMeta.turnStartTime) : null;
   const tokens = sessionMeta.outputTokens ? formatTokens(sessionMeta.outputTokens) : null;
@@ -826,7 +839,7 @@ export function ChatPanel() {
           </button>
 
           {/* API route status — dot + label */}
-          <div className="flex items-center gap-1.5 text-[9px]">
+          <div className="flex items-center gap-1.5 text-[9px]" role="status" aria-live="polite">
             <span className={`w-[6px] h-[6px] rounded-full flex-shrink-0 transition-smooth
               ${sessionStatus === 'running'
                 ? 'bg-success shadow-[0_0_6px_var(--color-accent-glow)] animate-pulse-soft'
@@ -836,6 +849,14 @@ export function ChatPanel() {
             <span className="text-text-tertiary">
               {activeProvider ? (activeProvider.name || 'Custom') : 'CLI'}
             </span>
+            {(sessionStatus === 'running' || activityStatus.phase === 'awaiting') && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent/10
+                px-2 py-0.5 font-medium text-accent">
+                <span className="inline-block size-2 rounded-full border border-accent/30
+                  border-t-accent animate-spin" />
+                {getActivityLabel(t, activityStatus)}
+              </span>
+            )}
           </div>
 
           {/* Current session mode indicator */}
