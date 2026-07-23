@@ -30,6 +30,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'chat.toggleFiles': '切换文件面板',
     'chat.scrollToBottom': '滚动到底部',
     'chat.latest': '最新',
+    'chat.loadEarlier': '加载更早消息',
     'chat.welcome': `欢迎使用 ${APP_NAME}`,
     'chat.welcomeWithProject': '开始与 DeepSeek 协作，CLI 会话在后台无缝运行。',
     'chat.welcomeNoProject': '选择一个项目文件夹以开始。',
@@ -309,6 +310,9 @@ const messages: Record<Locale, Record<string, string>> = {
     'chat.awaiting': '等待输入...',
     'chat.tokenWarning': '上下文即将满载，建议 /compact',
     'chat.autoCompacting': '上下文接近上限，自动压缩中...',
+    'chat.compactRunning': '压缩中',
+    'chat.compactSucceeded': '已压缩',
+    'chat.compactFailed': '压缩失败',
     'chat.stallWarning': '任务仍在运行中，复杂任务可能需要较长时间。若界面持续无任何变化，可停止后重试',
 
     // Agent panel
@@ -525,6 +529,7 @@ const messages: Record<Locale, Record<string, string>> = {
     // Command processing card
     'cmd.processing': '正在执行',
     'cmd.processingDone': '执行完成',
+    'cmd.processingFailed': '执行失败',
     'cmd.elapsed': '耗时',
     'cmd.showOutput': '查看输出',
     'cmd.hideOutput': '收起输出',
@@ -744,6 +749,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'chat.toggleFiles': 'Toggle file panel',
     'chat.scrollToBottom': 'Scroll to bottom',
     'chat.latest': 'Latest',
+    'chat.loadEarlier': 'Load earlier messages',
     'chat.welcome': `Welcome to ${APP_NAME}`,
     'chat.welcomeWithProject': 'Start working with DeepSeek. Your CLI session runs seamlessly in the background.',
     'chat.welcomeNoProject': 'Select a project folder to get started.',
@@ -1023,6 +1029,9 @@ const messages: Record<Locale, Record<string, string>> = {
     'chat.awaiting': 'Awaiting input...',
     'chat.tokenWarning': 'Context nearly full — try /compact',
     'chat.autoCompacting': 'Context near limit, auto-compacting...',
+    'chat.compactRunning': 'Compacting',
+    'chat.compactSucceeded': 'Compacted',
+    'chat.compactFailed': 'Compact failed',
     'chat.stallWarning': 'Task still running — complex tasks may take a while. If no activity appears, try stopping and retrying',
 
     // Agent panel
@@ -1239,6 +1248,7 @@ const messages: Record<Locale, Record<string, string>> = {
     // Command processing card
     'cmd.processing': 'Running',
     'cmd.processingDone': 'Completed',
+    'cmd.processingFailed': 'Failed',
     'cmd.elapsed': 'Elapsed',
     'cmd.showOutput': 'Show output',
     'cmd.hideOutput': 'Hide output',

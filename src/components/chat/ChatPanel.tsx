@@ -1,6 +1,13 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { create } from 'zustand';
-import { useChatStore, useActiveTab, generateMessageId, type ChatMessage, type SessionMeta } from '../../stores/chatStore';
+import {
+  useChatStore,
+  useActiveTab,
+  generateMessageId,
+  type ActivityStatus,
+  type ChatMessage,
+  type SessionMeta,
+} from '../../stores/chatStore';
 import { MessageBubble } from './MessageBubble';
 import { ToolGroup } from './ToolGroup';
 import { InputBar } from './InputBar';
@@ -27,6 +34,8 @@ import { SetupWizard } from '../setup/SetupWizard';
 import { AiAvatar } from '../shared/AiAvatar';
 import { displayDeepSeekModelName } from '../../lib/deepseek-models';
 import { parseTurns, type Turn } from '../../lib/turns';
+
+const MESSAGE_RENDER_BATCH = 200;
 
 /** Shared plan panel toggle — used by ChatPanel (panel) and InputBar (button) */
 export const usePlanPanelStore = create<{
@@ -229,13 +238,25 @@ function CyclingThinkingText() {
   );
 }
 
+function getActivityLabel(t: (key: string) => string, activityStatus: ActivityStatus): string {
+  if (activityStatus.phase === 'thinking') return t('chat.thinking');
+  if (activityStatus.phase === 'writing') return t('chat.writing');
+  if (activityStatus.phase === 'tool') {
+    return `${t('chat.runningTool')}${activityStatus.toolName ? `: ${activityStatus.toolName}` : ''}`;
+  }
+  if (activityStatus.phase === 'awaiting') return t('chat.awaiting');
+  return t('chat.running');
+}
+
 /** Activity indicator with elapsed time and token count */
 function ActivityIndicator({ activityStatus, sessionMeta }: {
-  activityStatus: { phase: string; toolName?: string };
+  activityStatus: ActivityStatus;
   sessionMeta: {
     turnStartTime?: number;
     outputTokens?: number;
     inputTokens?: number;
+    contextInputTokens?: number;
+    contextOutputTokens?: number;
     lastProgressAt?: number;
     spawnedModel?: string;
     snapshotModel?: string;
@@ -250,11 +271,7 @@ function ActivityIndicator({ activityStatus, sessionMeta }: {
     return () => clearInterval(id);
   }, []);
 
-  const phaseText = activityStatus.phase === 'thinking' ? t('chat.thinking')
-    : activityStatus.phase === 'writing' ? t('chat.writing')
-    : activityStatus.phase === 'tool' ? `${t('chat.runningTool')}: ${activityStatus.toolName || ''}`
-    : activityStatus.phase === 'awaiting' ? t('chat.awaiting')
-    : t('chat.running');
+  const phaseText = getActivityLabel(t, activityStatus);
 
   const elapsed = sessionMeta.turnStartTime ? formatElapsed(now - sessionMeta.turnStartTime) : null;
   const tokens = sessionMeta.outputTokens ? formatTokens(sessionMeta.outputTokens) : null;
@@ -273,8 +290,10 @@ function ActivityIndicator({ activityStatus, sessionMeta }: {
     resolvedModel,
     sessionMeta.snapshotContextWindowMode ?? contextWindowMode,
   );
-  const inputTokens = sessionMeta.inputTokens || 0;
-  const contextWarning = inputTokens > contextWindow * 0.6;
+  const contextTokens = sessionMeta.contextInputTokens != null
+    ? sessionMeta.contextInputTokens + (sessionMeta.contextOutputTokens ?? 0)
+    : (sessionMeta.inputTokens ?? 0) + (sessionMeta.outputTokens ?? 0);
+  const contextWarning = contextTokens > contextWindow * 0.6;
 
   // Stall detection: 120s of silence (no stream activity), not total elapsed time.
   const stallWarning = !!sessionMeta.lastProgressAt
@@ -322,6 +341,7 @@ function ContextMeter({ sessionMeta, tabId, sessionStatus }: {
   const selectedModel = useSettingsStore((s) => s.selectedModel);
   const contextWindowMode = useSettingsStore((s) => s.contextWindowMode);
   const autoCompactThresholdTokens = useSettingsStore((s) => s.autoCompactThresholdTokens);
+  const t = useT();
   const [isCompacting, setIsCompacting] = useState(false);
   const modelForContext = sessionMeta.spawnedModel
     || sessionMeta.snapshotModel
@@ -330,14 +350,19 @@ function ContextMeter({ sessionMeta, tabId, sessionStatus }: {
   const effectiveContextMode = sessionMeta.snapshotContextWindowMode ?? contextWindowMode;
   const contextWindow = getContextWindowForModel(modelForContext, effectiveContextMode);
   const compactThreshold = getAutoCompactThreshold(modelForContext, effectiveContextMode, autoCompactThresholdTokens);
-  const used = Math.min(contextWindow, Math.max(0,
-    (sessionMeta.inputTokens ?? 0) + (sessionMeta.outputTokens ?? 0),
-  ));
+  const measuredContext = sessionMeta.contextInputTokens != null
+    ? sessionMeta.contextInputTokens + (sessionMeta.contextOutputTokens ?? 0)
+    : (sessionMeta.inputTokens ?? 0) + (sessionMeta.outputTokens ?? 0);
+  const used = Math.min(contextWindow, Math.max(0, measuredContext));
   const available = Math.max(0, contextWindow - used);
   const percent = Math.min(100, Math.round((used / contextWindow) * 100));
   const thresholdPercent = Math.min(100, Math.round((compactThreshold / contextWindow) * 100));
   const isBusy = sessionStatus === 'running';
   const canCompact = Boolean(tabId && sessionMeta.stdinId && !isBusy && !isCompacting);
+  const compaction = sessionMeta.compaction;
+  const compactionTime = compaction
+    ? new Date(compaction.completedAt ?? compaction.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : '';
 
   const handleCompact = async () => {
     if (!tabId || !sessionMeta.stdinId || isBusy) return;
@@ -356,12 +381,72 @@ function ContextMeter({ sessionMeta, tabId, sessionStatus }: {
       timestamp: Date.now(),
     });
     store.setSessionMeta(tabId, { pendingCommandMsgId: processingMsgId });
+    store.setSessionMeta(tabId, {
+      autoCompactArmed: false,
+      compaction: {
+        status: 'running',
+        trigger: 'manual',
+        startedAt: Date.now(),
+        beforeTokens: used,
+      },
+    });
     store.setSessionStatus(tabId, 'running');
     store.setActivityStatus(tabId, { phase: 'thinking' });
     try {
       await bridge.sendStdin(sessionMeta.stdinId, '/compact');
+      setTimeout(() => {
+        const latest = useChatStore.getState().getTab(tabId)?.sessionMeta;
+        if (latest?.pendingCommandMsgId !== processingMsgId || latest.compaction?.status !== 'running') {
+          return;
+        }
+        const completedAt = Date.now();
+        const currentStore = useChatStore.getState();
+        currentStore.updateMessage(tabId, processingMsgId, {
+          commandCompleted: true,
+          commandData: {
+            command: '/compact',
+            status: 'failed',
+            output: '90 秒内未检测到 compact_boundary 或上下文下降，可以再次点击 Compact 重试。',
+            completedAt,
+          },
+        });
+        currentStore.setSessionMeta(tabId, {
+          pendingCommandMsgId: undefined,
+          autoCompactArmed: true,
+          compaction: {
+            ...latest.compaction,
+            status: 'failed',
+            completedAt,
+            error: 'Compact was not verified within 90 seconds',
+          },
+        });
+        if (currentStore.getTab(tabId)?.sessionStatus === 'running') {
+          currentStore.setSessionStatus(tabId, 'error');
+        }
+      }, 90_000);
     } catch (e) {
-      store.setSessionMeta(tabId, { pendingCommandMsgId: undefined });
+      const completedAt = Date.now();
+      store.updateMessage(tabId, processingMsgId, {
+        commandCompleted: true,
+        commandData: {
+          command: '/compact',
+          status: 'failed',
+          output: `发送 /compact 失败：${String(e)}`,
+          completedAt,
+        },
+      });
+      store.setSessionMeta(tabId, {
+        pendingCommandMsgId: undefined,
+        autoCompactArmed: true,
+        compaction: {
+          status: 'failed',
+          trigger: 'manual',
+          startedAt: completedAt,
+          completedAt,
+          beforeTokens: used,
+          error: String(e),
+        },
+      });
       store.setSessionStatus(tabId, 'error');
       console.warn('[TOKENICODE] manual compact failed:', e);
     } finally {
@@ -393,6 +478,19 @@ function ContextMeter({ sessionMeta, tabId, sessionStatus }: {
       >
         Compact
       </button>
+      {compaction && (
+        <span
+          className={compaction.status === 'failed' ? 'text-error' : compaction.status === 'running' ? 'text-warning' : 'text-success'}
+          title={compaction.error || ''}
+        >
+          {compaction.status === 'running'
+            ? t('chat.compactRunning')
+            : compaction.status === 'succeeded'
+              ? t('chat.compactSucceeded')
+              : t('chat.compactFailed')}
+          {' '}{compactionTime}
+        </span>
+      )}
     </div>
   );
 }
@@ -480,6 +578,25 @@ export function ChatPanel() {
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
   const sessions = useSessionStore((s) => s.sessions);
   const isFilePreviewMode = !!useFileStore((s) => s.selectedFile);
+  const [messageRenderWindow, setMessageRenderWindow] = useState<{
+    sessionId: string | null;
+    limit: number;
+  }>({ sessionId: selectedSessionId, limit: MESSAGE_RENDER_BATCH });
+  const messageRenderLimit = messageRenderWindow.sessionId === selectedSessionId
+    ? messageRenderWindow.limit
+    : MESSAGE_RENDER_BATCH;
+  const hiddenMessageCount = Math.max(0, messages.length - messageRenderLimit);
+  const visibleMessages = useMemo(
+    () => messages.slice(hiddenMessageCount),
+    [messages, hiddenMessageCount],
+  );
+
+  useEffect(() => {
+    setMessageRenderWindow({
+      sessionId: selectedSessionId,
+      limit: MESSAGE_RENDER_BATCH,
+    });
+  }, [selectedSessionId]);
 
   // Agent activity for floating button badge
   const agents = useAgentStore((s) => s.agents);
@@ -518,23 +635,31 @@ export function ChatPanel() {
   const displayItems = useMemo<DisplayItem[]>(() => {
     const items: DisplayItem[] = [];
     let i = 0;
-    while (i < messages.length) {
+    while (i < visibleMessages.length) {
       // Detect runs of consecutive tool_use messages
-      if (messages[i].type === 'tool_use') {
+      if (visibleMessages[i].type === 'tool_use') {
         let j = i;
-        while (j < messages.length && messages[j].type === 'tool_use') j++;
+        while (j < visibleMessages.length && visibleMessages[j].type === 'tool_use') j++;
         const runLength = j - i;
         if (runLength >= 3) {
-          items.push({ kind: 'tool_group', msgs: messages.slice(i, j), startIdx: i });
+          items.push({
+            kind: 'tool_group',
+            msgs: visibleMessages.slice(i, j),
+            startIdx: hiddenMessageCount + i,
+          });
           i = j;
           continue;
         }
       }
-      items.push({ kind: 'message', msg: messages[i], idx: i });
+      items.push({
+        kind: 'message',
+        msg: visibleMessages[i],
+        idx: hiddenMessageCount + i,
+      });
       i++;
     }
     return items;
-  }, [messages]);
+  }, [visibleMessages, hiddenMessageCount]);
 
   // Collect plan review messages from the session (created by ExitPlanMode)
   const planMessages = useMemo(
@@ -558,7 +683,7 @@ export function ChatPanel() {
   const showScrollBtnRef = useRef(false);
   const scrollRafRef = useRef(0);
   const [activeTurnId, setActiveTurnId] = useState<string | undefined>();
-  const turns = useMemo(() => parseTurns(messages), [messages]);
+  const turns = useMemo(() => parseTurns(visibleMessages), [visibleMessages]);
 
   const setMessageNode = useCallback((id: string) => (node: HTMLDivElement | null) => {
     if (node) {
@@ -714,7 +839,7 @@ export function ChatPanel() {
           </button>
 
           {/* API route status — dot + label */}
-          <div className="flex items-center gap-1.5 text-[9px]">
+          <div className="flex items-center gap-1.5 text-[9px]" role="status" aria-live="polite">
             <span className={`w-[6px] h-[6px] rounded-full flex-shrink-0 transition-smooth
               ${sessionStatus === 'running'
                 ? 'bg-success shadow-[0_0_6px_var(--color-accent-glow)] animate-pulse-soft'
@@ -724,6 +849,14 @@ export function ChatPanel() {
             <span className="text-text-tertiary">
               {activeProvider ? (activeProvider.name || 'Custom') : 'CLI'}
             </span>
+            {(sessionStatus === 'running' || activityStatus.phase === 'awaiting') && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent/10
+                px-2 py-0.5 font-medium text-accent">
+                <span className="inline-block size-2 rounded-full border border-accent/30
+                  border-t-accent animate-spin" />
+                {getActivityLabel(t, activityStatus)}
+              </span>
+            )}
           </div>
 
           {/* Current session mode indicator */}
@@ -777,6 +910,21 @@ export function ChatPanel() {
           <EmptyReadyState />
         ) : (
           <div className="max-w-3xl mx-auto">
+            {hiddenMessageCount > 0 && (
+              <div className="flex justify-center mb-5">
+                <button
+                  onClick={() => setMessageRenderWindow({
+                    sessionId: selectedSessionId,
+                    limit: Math.min(messages.length, messageRenderLimit + MESSAGE_RENDER_BATCH),
+                  })}
+                  className="px-3 py-1.5 rounded-full border border-border-subtle
+                    bg-bg-secondary/50 text-xs text-text-muted
+                    hover:bg-bg-secondary hover:text-text-primary transition-smooth"
+                >
+                  {t('chat.loadEarlier')} ({hiddenMessageCount})
+                </button>
+              </div>
+            )}
             {displayItems.map((item, displayIdx) => {
               // Determine spacing based on item type
               const isCompact = item.kind === 'tool_group'
@@ -899,25 +1047,6 @@ export function ChatPanel() {
           onJumpTurn={jumpToTurn}
           onJumpBottom={scrollToBottom}
         />
-      )}
-
-      {/* Scroll to bottom FAB */}
-      {showScrollBtn && (
-        <button
-          onClick={scrollToBottom}
-          className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10
-            inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-bg-card border border-border-subtle
-            shadow-md hover:shadow-lg justify-center
-            text-text-muted hover:text-text-primary transition-smooth
-            cursor-pointer opacity-80 hover:opacity-100"
-          title={t('chat.scrollToBottom')}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-            stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M7 2v10M3 8l4 4 4-4" />
-          </svg>
-          <span className="text-xs">{t('chat.latest')}</span>
-        </button>
       )}
 
       {/* Directory missing banner */}

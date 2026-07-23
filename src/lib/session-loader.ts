@@ -1,6 +1,11 @@
-import type { ChatMessage } from '../stores/chatStore';
+import type { ChatMessage, CompactionState } from '../stores/chatStore';
 import { generateMessageId } from '../stores/chatStore';
 import type { AgentPhase } from '../stores/agentStore';
+import {
+  getContextInputTokens,
+  getContextOutputTokens,
+  hasMeaningfulContextUsage,
+} from './context-usage';
 
 export interface AgentData {
   id: string;
@@ -16,6 +21,10 @@ export interface LoadedSession {
   messages: ChatMessage[];
   agents: AgentData[];
   mainAgentStartTime: number;
+  contextInputTokens?: number;
+  contextOutputTokens?: number;
+  compaction?: CompactionState;
+  model?: string;
 }
 
 /** Detect system-injected content that should not be shown to users */
@@ -35,6 +44,10 @@ function isSystemText(text: string): boolean {
 export function parseSessionMessages(rawMessages: any[]): LoadedSession {
   const messages: ChatMessage[] = [];
   const agents: AgentData[] = [];
+  let contextInputTokens: number | undefined;
+  let contextOutputTokens: number | undefined;
+  let compaction: CompactionState | undefined;
+  let model: string | undefined;
 
   // Create main agent with session start time
   const firstMsg = rawMessages[0];
@@ -56,6 +69,26 @@ export function parseSessionMessages(rawMessages: any[]): LoadedSession {
   const toolUseIdToIndex = new Map<string, number>();
 
   for (const msg of rawMessages) {
+    if (msg.type === 'assistant' && hasMeaningfulContextUsage(msg.message?.usage)) {
+      contextInputTokens = getContextInputTokens(msg.message.usage);
+      contextOutputTokens = getContextOutputTokens(msg.message.usage);
+      if (msg.message.model && msg.message.model !== '<synthetic>') {
+        model = msg.message.model;
+      }
+    }
+
+    if (msg.type === 'system' && msg.subtype === 'compact_boundary') {
+      const metadata = msg.compactMetadata || msg.compact_metadata || {};
+      const completedAt = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now();
+      compaction = {
+        status: 'succeeded',
+        trigger: metadata.trigger === 'manual' ? 'manual' : 'auto',
+        startedAt: completedAt,
+        completedAt,
+        beforeTokens: Number(metadata.preTokens ?? metadata.pre_tokens) || 0,
+      };
+    }
+
     // Skip system-injected meta messages
     if (msg.isMeta) continue;
 
@@ -211,5 +244,13 @@ export function parseSessionMessages(rawMessages: any[]): LoadedSession {
     }
   }
 
-  return { messages, agents, mainAgentStartTime: sessionStartTime };
+  return {
+    messages,
+    agents,
+    mainAgentStartTime: sessionStartTime,
+    contextInputTokens,
+    contextOutputTokens,
+    compaction,
+    model,
+  };
 }

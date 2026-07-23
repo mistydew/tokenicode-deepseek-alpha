@@ -9,7 +9,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::Mutex as TokioMutex;
@@ -3310,6 +3310,13 @@ fn reject_unsafe_path(path: &str) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[tauri::command]
+fn get_home_dir() -> Result<String, String> {
+    dirs::home_dir()
+        .map(|path| path.to_string_lossy().to_string())
+        .ok_or_else(|| "Cannot determine home directory".to_string())
 }
 
 #[tauri::command]
@@ -7742,7 +7749,7 @@ async fn set_dock_icon(app: AppHandle, png_base64: String) -> Result<(), String>
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -7800,6 +7807,7 @@ pub fn run() {
             search_sessions,
             load_session,
             read_file_tree,
+            get_home_dir,
             read_file_content,
             write_file_content,
             copy_file,
@@ -7866,8 +7874,22 @@ pub fn run() {
             respond_permission,
             send_control_request,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app_handle, event| {
+        if matches!(
+            event,
+            tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
+        ) {
+            let stdin_manager = app_handle.state::<StdinManager>();
+            let process_manager = app_handle.state::<ProcessManager>();
+            tauri::async_runtime::block_on(async {
+                stdin_manager.clear().await;
+                process_manager.kill_all().await;
+            });
+        }
+    });
 }
 
 #[cfg(test)]

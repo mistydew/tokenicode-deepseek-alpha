@@ -388,6 +388,25 @@ input, textarea, [contenteditable="true"],
   background: color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
+/* Keep secondary-panel tabs reachable when the panel is narrower than the tab row. */
+.secondary-panel-tabs::-webkit-scrollbar {
+  height: 5px;
+}
+
+.secondary-panel-tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.secondary-panel-tabs::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  border-radius: 999px;
+}
+
+.secondary-panel-tabs {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-accent) 30%, transparent) transparent;
+}
+
 /* Firefox: thin scrollbar, themed color */
 * {
   scrollbar-width: thin;

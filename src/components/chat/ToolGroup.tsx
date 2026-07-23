@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { type ChatMessage } from '../../stores/chatStore';
 import { ToolUseMsg } from './MessageBubble';
 import { useT } from '../../lib/i18n';
@@ -26,7 +26,7 @@ function buildToolSummary(messages: ChatMessage[]): string {
  * - Expanded: individual ToolUseMsg components with a left border connector
  * - Auto-collapses when all tools have results
  */
-export function ToolGroup({ messages }: Props) {
+export const ToolGroup = memo(function ToolGroup({ messages }: Props) {
   const t = useT();
 
   // Auto-collapse when all tools have results
@@ -89,4 +89,4 @@ export function ToolGroup({ messages }: Props) {
       )}
     </div>
   );
-}
+});
