@@ -1,6 +1,6 @@
 [package]
 name = "tokenicode"
-version = "1.0.4"
+version = "1.0.5"
 description = "TOKENICODE DeepSeek Alpha - a DeepSeek/CC Switch focused TOKENICODE fork"
 authors = ["TinyZ"]
 license = "Apache-2.0"
@@ -36,6 +36,7 @@ flate2 = "1"
 tar = "0.4"
 zip = "2"
 sha2 = "0.10"
+aes-gcm = "0.10"
 
 [dev-dependencies]
 tempfile = "3"

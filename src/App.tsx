@@ -72,6 +72,12 @@ function App() {
   const theme = useSettingsStore((s) => s.theme);
   const colorTheme = useSettingsStore((s) => s.colorTheme);
   const backgroundTheme = useSettingsStore((s) => s.backgroundTheme);
+  const customBgImage = useSettingsStore((s) => s.customBgImage);
+  const customBgSize = useSettingsStore((s) => s.customBgSize);
+  const customBgPositionX = useSettingsStore((s) => s.customBgPositionX);
+  const customBgPositionY = useSettingsStore((s) => s.customBgPositionY);
+  const glassBlur = useSettingsStore((s) => s.glassBlur);
+  const glassOpacity = useSettingsStore((s) => s.glassOpacity);
   const fontSize = useSettingsStore((s) => s.fontSize);
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const monoFontFollowsInterface = useSettingsStore((s) => s.monoFontFollowsInterface);
@@ -212,6 +218,28 @@ function App() {
     root.classList.remove('bg-theme-garden', 'bg-theme-sakura', 'bg-theme-lake', 'bg-theme-dusk', 'bg-theme-ink', 'bg-theme-vscode', 'bg-theme-minimal');
     root.classList.add(`bg-theme-${backgroundTheme}`);
   }, [backgroundTheme]);
+
+  // Apply custom background image + glass morphism CSS variables
+  useEffect(() => {
+    const root = document.documentElement;
+    if (customBgImage) {
+      root.classList.add('custom-bg-active');
+      root.style.setProperty('--custom-bg-image', `url(${customBgImage})`);
+      root.style.setProperty('--custom-bg-size', customBgSize === 'fill' ? '100% 100%' : customBgSize);
+      root.style.setProperty('--custom-bg-pos-x', `${customBgPositionX}%`);
+      root.style.setProperty('--custom-bg-pos-y', `${customBgPositionY}%`);
+      root.style.setProperty('--glass-blur', `${glassBlur}px`);
+      root.style.setProperty('--glass-opacity', `${glassOpacity / 100}`);
+    } else {
+      root.classList.remove('custom-bg-active');
+      root.style.removeProperty('--custom-bg-image');
+      root.style.removeProperty('--custom-bg-size');
+      root.style.removeProperty('--custom-bg-pos-x');
+      root.style.removeProperty('--custom-bg-pos-y');
+      root.style.removeProperty('--glass-blur');
+      root.style.removeProperty('--glass-opacity');
+    }
+  }, [customBgImage, customBgSize, customBgPositionX, customBgPositionY, glassBlur, glassOpacity]);
 
   // Update macOS dock icon when color theme changes
   useEffect(() => {

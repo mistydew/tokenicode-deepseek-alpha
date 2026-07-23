@@ -499,16 +499,20 @@ export function FilePreview() {
           /* HTML preview: inject <base> tag so relative CSS/JS/images resolve correctly */
           <iframe
             srcDoc={injectBaseTag(fileContent, selectedFile)}
-            sandbox="allow-same-origin allow-scripts"
+            sandbox="allow-scripts"
             className="w-full h-full bg-white border-0"
             title={fileName}
           />
         ) : previewMode === 'preview' && isSvg && fileContent !== null ? (
-          /* SVG preview: render inline */
+          /* SVG preview: render inside a locked-down iframe (no scripts, no
+             same-origin) so a malicious <script>/<foreignObject> inside an SVG
+             can never reach the app's IPC bridge. */
           <div className="flex items-center justify-center h-full p-4 overflow-auto">
-            <div
-              className="max-w-full max-h-full selectable"
-              dangerouslySetInnerHTML={{ __html: fileContent }}
+            <iframe
+              srcDoc={fileContent}
+              sandbox=""
+              title={fileName}
+              className="max-w-full max-h-full bg-white border-0"
             />
           </div>
         ) : previewMode === 'preview' && isMarkdown && displayedMarkdownContent !== null ? (

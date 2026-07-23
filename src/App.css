@@ -1297,3 +1297,70 @@ thead {
 .animate-ping {
   will-change: transform;
 }
+
+/* ================================================================
+   Custom background image + glass morphism
+   ================================================================ */
+
+/* Root background when custom image is active */
+.custom-bg-active body {
+  background: var(--custom-bg-image) !important;
+  background-size: var(--custom-bg-size, cover) !important;
+  background-position:
+    var(--custom-bg-pos-x, 50%) var(--custom-bg-pos-y, 50%) !important;
+  background-repeat: no-repeat !important;
+  background-attachment: fixed !important;
+}
+
+/* Override skin-body-background when custom bg is active */
+.custom-bg-active .gradient-bg {
+  background: transparent !important;
+}
+
+/* Glass panels — backdrop-filter blur + semi-transparent bg */
+.custom-bg-active .bg-bg-sidebar,
+.custom-bg-active .bg-bg-chat,
+.custom-bg-active .bg-bg-card,
+.custom-bg-active .bg-bg-input {
+  backdrop-filter: blur(var(--glass-blur, 8px));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 8px));
+  background-color: color-mix(
+    in srgb,
+    var(--color-bg-primary, #F8F8FA) calc(var(--glass-opacity, 0.85) * 100%),
+    transparent
+  ) !important;
+  background-image: none !important;
+}
+
+/* Secondary panels also get glass */
+.custom-bg-active .bg-bg-secondary,
+.custom-bg-active .bg-bg-tertiary {
+  backdrop-filter: blur(var(--glass-blur, 8px));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 8px));
+  background-color: color-mix(
+    in srgb,
+    var(--color-bg-secondary, #F0F0F2) calc(var(--glass-opacity, 0.85) * 100%),
+    transparent
+  ) !important;
+}
+
+/* Input area needs slightly more opacity for readability */
+.custom-bg-active .bg-bg-input,
+.custom-bg-active input,
+.custom-bg-active textarea {
+  backdrop-filter: blur(calc(var(--glass-blur, 8px) * 1.2));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur, 8px) * 1.2));
+}
+
+/* Keep user message bubbles solid */
+.custom-bg-active .bg-bg-user-msg {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: var(--skin-accent-gradient, var(--color-accent)) !important;
+}
+
+/* Hide skin decorative elements when custom bg is active */
+.custom-bg-active .gradient-bg::before,
+.custom-bg-active .gradient-bg::after {
+  display: none !important;
+}

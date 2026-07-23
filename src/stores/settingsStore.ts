@@ -111,6 +111,20 @@ interface SettingsState {
   /** Whether to show dotfiles (hidden files) in the file tree */
   showHiddenFiles: boolean;
 
+  // ── Custom background (user-uploaded image) ──
+  /** Base64 data URL of user-uploaded custom background image, empty = disabled */
+  customBgImage: string;
+  /** Background size mode */
+  customBgSize: 'cover' | 'contain' | 'fill';
+  /** Horizontal position offset (0=left, 100=right) */
+  customBgPositionX: number;
+  /** Vertical position offset (0=top, 100=bottom) */
+  customBgPositionY: number;
+  /** Glass blur strength in px */
+  glassBlur: number;
+  /** Glass panel opacity (0=clear, 100=solid) */
+  glassOpacity: number;
+
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
   setColorTheme: (colorTheme: ColorTheme) => void;
@@ -146,6 +160,13 @@ interface SettingsState {
   setUserAvatarUrl: (url: string) => void;
   setUserDisplayName: (name: string) => void;
   toggleHiddenFiles: () => void;
+  setCustomBgImage: (image: string) => void;
+  setCustomBgSize: (size: 'cover' | 'contain' | 'fill') => void;
+  setCustomBgPositionX: (x: number) => void;
+  setCustomBgPositionY: (y: number) => void;
+  setGlassBlur: (blur: number) => void;
+  setGlassOpacity: (opacity: number) => void;
+  clearCustomBg: () => void;
 }
 
 // --- Theme cycle order ---
@@ -193,6 +214,12 @@ export const useSettingsStore = create<SettingsState>()(
       userAvatarUrl: '',
       userDisplayName: '',
       showHiddenFiles: false,
+      customBgImage: '',
+      customBgSize: 'cover',
+      customBgPositionX: 50,
+      customBgPositionY: 50,
+      glassBlur: 8,
+      glassOpacity: 85,
 
       toggleTheme: () =>
         set((state) => ({ theme: nextTheme(state.theme) })),
@@ -305,12 +332,19 @@ export const useSettingsStore = create<SettingsState>()(
 
       setUserDisplayName: (name) =>
         set(() => ({ userDisplayName: name.slice(0, 20) })),
+      setCustomBgImage: (image) => set(() => ({ customBgImage: image })),
+      setCustomBgSize: (size) => set(() => ({ customBgSize: size })),
+      setCustomBgPositionX: (x) => set(() => ({ customBgPositionX: Math.max(0, Math.min(100, x)) })),
+      setCustomBgPositionY: (y) => set(() => ({ customBgPositionY: Math.max(0, Math.min(100, y)) })),
+      setGlassBlur: (blur) => set(() => ({ glassBlur: Math.max(0, Math.min(20, blur)) })),
+      setGlassOpacity: (opacity) => set(() => ({ glassOpacity: Math.max(0, Math.min(100, opacity)) })),
+      clearCustomBg: () => set(() => ({ customBgImage: '', customBgSize: 'cover', customBgPositionX: 50, customBgPositionY: 50, glassBlur: 8, glassOpacity: 85 })),
       toggleHiddenFiles: () =>
         set((state) => ({ showHiddenFiles: !state.showHiddenFiles })),
     }),
     {
       name: 'tokenicode-settings',
-      version: 11,
+      version: 12,
       migrate: (persistedState: unknown, version: number) => {
         const persisted = persistedState as Record<string, unknown>;
         if (version === 0) {
@@ -372,6 +406,14 @@ export const useSettingsStore = create<SettingsState>()(
           const mode = persisted.contextWindowMode === 'large1m' ? 'large1m' : 'default';
           persisted.autoCompactThresholdTokens = defaultAutoCompactThreshold(mode);
         }
+        if (version < 12) {
+          persisted.customBgImage = '';
+          persisted.customBgSize = 'cover';
+          persisted.customBgPositionX = 50;
+          persisted.customBgPositionY = 50;
+          persisted.glassBlur = 8;
+          persisted.glassOpacity = 85;
+        }
         return persisted;
       },
       partialize: (state) => ({
@@ -399,6 +441,12 @@ export const useSettingsStore = create<SettingsState>()(
         userAvatarUrl: state.userAvatarUrl,
         userDisplayName: state.userDisplayName,
         showHiddenFiles: state.showHiddenFiles,
+        customBgImage: state.customBgImage,
+        customBgSize: state.customBgSize,
+        customBgPositionX: state.customBgPositionX,
+        customBgPositionY: state.customBgPositionY,
+        glassBlur: state.glassBlur,
+        glassOpacity: state.glassOpacity,
       }),
     },
   ),
