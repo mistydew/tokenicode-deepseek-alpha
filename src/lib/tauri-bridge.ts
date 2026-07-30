@@ -202,6 +202,12 @@ export interface ConnectionTestResult {
   model: StepResult;
 }
 
+export interface McpConnectionTestResult {
+  ok: boolean;
+  message: string;
+  status_code?: number;
+}
+
 export interface SetupOutputEvent {
   stream: 'stdout' | 'stderr';
   line: string;
@@ -589,6 +595,9 @@ export const bridge = {
 
   testProviderConnection: (baseUrl: string, apiFormat: string, apiKey: string, model: string, proxyUrl?: string) =>
     invoke<ConnectionTestResult>('test_provider_connection', { baseUrl, apiFormat, apiKey, model, proxyUrl: proxyUrl || null }),
+
+  testMcpConnection: (url: string) =>
+    invoke<McpConnectionTestResult>('test_mcp_http_connection', { url }),
 
 
   // --- SDK Control Protocol ---

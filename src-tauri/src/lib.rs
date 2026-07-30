@@ -985,6 +985,13 @@ struct ConnectionTestResult {
     model: StepResult,
 }
 
+#[derive(Debug, Serialize)]
+struct McpConnectionTestResult {
+    ok: bool,
+    message: String,
+    status_code: Option<u16>,
+}
+
 fn provider_messages_endpoint(base_url: &str, api_format: &str) -> String {
     let base = base_url.trim().trim_end_matches('/');
     let lower = base.to_lowercase();
@@ -1002,6 +1009,34 @@ fn provider_messages_endpoint(base_url: &str, api_format: &str) -> String {
         format!("{}/messages", base)
     } else {
         format!("{}/v1/messages", base)
+    }
+}
+
+/// Test HTTP connectivity to an MCP server by sending a HEAD request.
+/// Returns ok=true for any HTTP response (2xx-4xx), only connection errors are failures.
+#[tauri::command]
+async fn test_mcp_http_connection(url: String) -> Result<McpConnectionTestResult, String> {
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .unwrap_or_default();
+
+    match client.head(&url).send().await {
+        Ok(resp) => {
+            let status = resp.status().as_u16();
+            Ok(McpConnectionTestResult {
+                ok: status >= 200 && status < 500,
+                message: format!("HTTP {}", status),
+                status_code: Some(status),
+            })
+        }
+        Err(e) => Ok(McpConnectionTestResult {
+            ok: false,
+            message: format!("Connection failed: {}", e),
+            status_code: None,
+        }),
     }
 }
 
@@ -8019,6 +8054,7 @@ pub fn run() {
             load_providers,
             save_providers,
             test_provider_connection,
+            test_mcp_http_connection,
             respond_permission,
             send_control_request,
         ])

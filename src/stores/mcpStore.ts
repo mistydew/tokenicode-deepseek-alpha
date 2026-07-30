@@ -39,6 +39,10 @@ interface McpState {
   deleteServer: (name: string) => Promise<void>;
   setEditing: (name: string | null) => void;
   setAdding: (adding: boolean) => void;
+
+  // HTTP connection test status per server name
+  connectionStatus: Record<string, string>;
+  testConnection: (name: string) => Promise<void>;
 }
 
 // --- Helpers ---
@@ -259,6 +263,7 @@ export const useMcpStore = create<McpState>()((set, get) => ({
   editingServer: null,
   isAdding: false,
   scanMessage: '',
+  connectionStatus: {},
 
   fetchServers: async () => {
     set({ isLoading: true });
@@ -401,4 +406,31 @@ export const useMcpStore = create<McpState>()((set, get) => ({
 
   setEditing: (name) => set({ editingServer: name, isAdding: false }),
   setAdding: (adding) => set({ isAdding: adding, editingServer: null }),
+
+  testConnection: async (name) => {
+    const server = get().servers.find((s) => s.name === name);
+    const url = server?.config.url;
+    if (!url) return; // stdio servers: no-op
+
+    set((state) => ({
+      connectionStatus: { ...state.connectionStatus, [name]: 'testing' },
+    }));
+
+    try {
+      const result = await bridge.testMcpConnection(url);
+      set((state) => ({
+        connectionStatus: {
+          ...state.connectionStatus,
+          [name]: result.ok ? 'connected' : 'error',
+        },
+      }));
+    } catch {
+      set((state) => ({
+        connectionStatus: {
+          ...state.connectionStatus,
+          [name]: 'error',
+        },
+      }));
+    }
+  },
 }));

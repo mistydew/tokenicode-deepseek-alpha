@@ -20,6 +20,8 @@ export function McpTab() {
   const isAdding = useMcpStore((s) => s.isAdding);
   const setEditing = useMcpStore((s) => s.setEditing);
   const setAdding = useMcpStore((s) => s.setAdding);
+  const connectionStatus = useMcpStore((s) => s.connectionStatus);
+  const testConnection = useMcpStore((s) => s.testConnection);
 
   useEffect(() => {
     fetchServers();
@@ -109,6 +111,8 @@ export function McpTab() {
               <DiscoveredMcpCard
                 key={`${server.source}-${server.name}-${server.config.command || server.config.url}`}
                 server={server}
+                connectionStatus={connectionStatus[server.name]}
+                onTestConnection={() => testConnection(server.name)}
                 onImport={() => importDiscoveredServers([server.name])}
               />
             ))}
@@ -151,6 +155,8 @@ export function McpTab() {
               <McpServerCardCompact
                 key={server.name}
                 server={server}
+                connectionStatus={connectionStatus[server.name]}
+                onTestConnection={() => testConnection(server.name)}
                 onEdit={() => setEditing(server.name)}
                 onDelete={() => handleDelete(server.name)}
                 t={t}
@@ -163,11 +169,76 @@ export function McpTab() {
   );
 }
 
+function StatusDot({ status, isTesting, onTest }: {
+  status: string;
+  isTesting: boolean;
+  onTest?: () => void;
+}) {
+  const label = status === 'connected' ? '已连接'
+    : status === 'error' ? '连接失败'
+    : status === 'testing' ? '测试中…'
+    : '未测试';
+
+  const icon = status === 'connected' ? (
+    /* checkmark in circle */
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="6.5" stroke="#22c55e" strokeWidth="1.3" />
+      <path d="M5 8l2 2 4-4" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : status === 'error' ? (
+    /* x in circle */
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="6.5" stroke="#ef4444" strokeWidth="1.3" />
+      <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  ) : status === 'testing' ? (
+    /* spinning loader */
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="animate-spin">
+      <circle cx="8" cy="8" r="6" stroke="#eab308" strokeWidth="2" strokeDasharray="8 30" strokeLinecap="round" />
+    </svg>
+  ) : (
+    /* link / plug icon */
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"
+      className="text-text-tertiary/50">
+      <path d="M6.5 4.5h-2a2.5 2.5 0 000 5h2M9.5 11.5h2a2.5 2.5 0 000-5h-2"
+        strokeLinecap="round" />
+      <path d="M5.5 8h5" strokeLinecap="round" />
+    </svg>
+  );
+
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onTest?.(); }}
+      disabled={isTesting}
+      title={status === 'connected' ? '已连接（点击重测）'
+        : status === 'error' ? '连接失败（点击重测）'
+        : status === 'testing' ? '测试中…'
+        : '点击测试连接'}
+      className="flex-shrink-0 flex items-center gap-1 -ml-1 px-1.5 py-0.5 rounded-md
+        hover:bg-bg-tertiary transition-smooth text-[11px]"
+    >
+      {icon}
+      <span className={
+        status === 'connected' ? 'text-green-500' :
+        status === 'error' ? 'text-red-500' :
+        status === 'testing' ? 'text-yellow-500' :
+        'text-text-tertiary/50'
+      }>
+        {label}
+      </span>
+    </button>
+  );
+}
+
 function DiscoveredMcpCard({
   server,
+  connectionStatus,
+  onTestConnection,
   onImport,
 }: {
   server: DiscoveredMcpServer;
+  connectionStatus?: string;
+  onTestConnection?: () => void;
   onImport: () => void;
 }) {
   const envCount = Object.keys(server.config.env).length;
@@ -176,12 +247,17 @@ function DiscoveredMcpCard({
   const cmdDisplay = isHttp
     ? (server.config.url || '')
     : [server.config.command, ...server.config.args].join(' ');
+  const status = connectionStatus || 'idle';
+  const isTesting = status === 'testing';
 
   return (
     <div className={`px-3 py-2.5 rounded-lg border transition-smooth
       ${server.imported ? 'border-border-subtle bg-bg-secondary/20' : 'border-accent/20 bg-accent/5'}`}
     >
       <div className="flex items-center gap-2">
+        {isHttp && (
+          <StatusDot status={status} isTesting={isTesting} onTest={onTestConnection} />
+        )}
         <span className="text-[13px] font-medium text-text-primary truncate flex-1">
           {server.name}
         </span>
@@ -219,11 +295,15 @@ function DiscoveredMcpCard({
 /* Compact server card */
 function McpServerCardCompact({
   server,
+  connectionStatus,
+  onTestConnection,
   onEdit,
   onDelete,
   t,
 }: {
   server: McpServer;
+  connectionStatus?: string;
+  onTestConnection?: () => void;
   onEdit: () => void;
   onDelete: () => void;
   t: (key: string) => string;
@@ -234,12 +314,17 @@ function McpServerCardCompact({
   const cmdDisplay = isHttp
     ? (server.config.url || '')
     : [server.config.command, ...server.config.args].join(' ');
+  const status = connectionStatus || 'idle';
+  const isTesting = status === 'testing';
 
   return (
     <div className="px-4 py-3 rounded-lg transition-smooth group border
       border-border-subtle hover:bg-bg-secondary">
       {/* Name + type + actions */}
       <div className="flex items-center gap-2">
+        {isHttp && (
+          <StatusDot status={status} isTesting={isTesting} onTest={onTestConnection} />
+        )}
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
           stroke="currentColor" strokeWidth="1.5"
           className="text-text-tertiary flex-shrink-0">
