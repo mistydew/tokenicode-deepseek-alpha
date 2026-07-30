@@ -649,6 +649,20 @@ export function ChatPanel() {
     }
   }, [messages, partialText, partialThinking]);
 
+  // Force scroll to bottom when streaming ends — Chromium scroll anchoring
+  // may adjust scroll position upward when the streaming block is removed from DOM,
+  // and the scroll event fires synchronously (before React effects), which sets
+  // isNearBottomRef to false, preventing the auto-scroll effect above from firing.
+  const wasStreamingRef = useRef(isStreaming);
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming && scrollRef.current) {
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'instant' });
+      userScrollingUpRef.current = false;
+      isNearBottomRef.current = true;
+    }
+    wasStreamingRef.current = isStreaming;
+  }, [isStreaming]);
+
   useEffect(() => {
     updateActiveTurnFromScroll();
   }, [turns.length, messages.length, updateActiveTurnFromScroll]);

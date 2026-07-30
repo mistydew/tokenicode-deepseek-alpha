@@ -18,7 +18,8 @@
         "minWidth": 900,
         "minHeight": 600,
         "titleBarStyle": "Overlay",
-        "hiddenTitle": true
+        "hiddenTitle": true,
+        "dataDirectory": "tk-webview"
       }
     ],
     "security": {

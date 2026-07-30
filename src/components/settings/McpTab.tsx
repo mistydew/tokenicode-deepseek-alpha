@@ -107,7 +107,7 @@ export function McpTab() {
           <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
             {discoveredServers.map((server) => (
               <DiscoveredMcpCard
-                key={`${server.source}-${server.name}-${server.config.command}`}
+                key={`${server.source}-${server.name}-${server.config.command || server.config.url}`}
                 server={server}
                 onImport={() => importDiscoveredServers([server.name])}
               />
@@ -171,7 +171,11 @@ function DiscoveredMcpCard({
   onImport: () => void;
 }) {
   const envCount = Object.keys(server.config.env).length;
-  const cmdDisplay = [server.config.command, ...server.config.args].join(' ');
+  const headerCount = server.config.headers ? Object.keys(server.config.headers).length : 0;
+  const isHttp = server.config.type === 'http' || !!server.config.url;
+  const cmdDisplay = isHttp
+    ? (server.config.url || '')
+    : [server.config.command, ...server.config.args].join(' ');
 
   return (
     <div className={`px-3 py-2.5 rounded-lg border transition-smooth
@@ -200,10 +204,13 @@ function DiscoveredMcpCard({
         {server.source}
       </p>
       <p className="mt-1 text-xs text-text-muted font-mono truncate" title={cmdDisplay}>
-        {cmdDisplay}
+        {isHttp ? server.config.url : cmdDisplay}
       </p>
       {envCount > 0 && (
         <p className="mt-0.5 text-[11px] text-text-tertiary">{envCount} 个环境变量</p>
+      )}
+      {headerCount > 0 && (
+        <p className="mt-0.5 text-[11px] text-text-tertiary">{headerCount} 个请求头</p>
       )}
     </div>
   );
@@ -222,7 +229,11 @@ function McpServerCardCompact({
   t: (key: string) => string;
 }) {
   const envCount = Object.keys(server.config.env).length;
-  const cmdDisplay = [server.config.command, ...server.config.args].join(' ');
+  const headerCount = server.config.headers ? Object.keys(server.config.headers).length : 0;
+  const isHttp = server.config.type === 'http' || !!server.config.url;
+  const cmdDisplay = isHttp
+    ? (server.config.url || '')
+    : [server.config.command, ...server.config.args].join(' ');
 
   return (
     <div className="px-4 py-3 rounded-lg transition-smooth group border
@@ -238,9 +249,9 @@ function McpServerCardCompact({
         <span className="text-[13px] font-medium truncate flex-1 text-text-primary">
           {server.name}
         </span>
-        <span className="flex-shrink-0 px-2 py-0.5 text-xs rounded-md
-          bg-blue-500/15 text-blue-400 font-medium">
-          {server.config.type}
+        <span className={`flex-shrink-0 px-2 py-0.5 text-xs rounded-md font-medium
+          ${isHttp ? 'bg-green-500/15 text-green-400' : 'bg-blue-500/15 text-blue-400'}`}>
+          {isHttp ? 'http' : server.config.type}
         </span>
         <button
           onClick={onEdit}
@@ -265,13 +276,18 @@ function McpServerCardCompact({
           </svg>
         </button>
       </div>
-      {/* Command */}
+      {/* Command / URL */}
       <p className="text-xs text-text-muted mt-1 font-mono truncate pl-5">
         {cmdDisplay}
       </p>
       {envCount > 0 && (
         <p className="text-xs text-text-tertiary mt-0.5 pl-5">
           {envCount} {t('mcp.envCount')}
+        </p>
+      )}
+      {headerCount > 0 && (
+        <p className="text-xs text-text-tertiary mt-0.5 pl-5">
+          {headerCount} 个请求头
         </p>
       )}
     </div>
@@ -290,7 +306,12 @@ function McpServerForm({
   onCancel: () => void;
   t: (key: string) => string;
 }) {
+  const existingType = server?.config.type || 'stdio';
+  const isExistingHttp = existingType === 'http' || !!server?.config.url;
   const [name, setName] = useState(server?.name || '');
+  const [mcpType, setMcpType] = useState<'stdio' | 'http'>(
+    isExistingHttp ? 'http' : 'stdio'
+  );
   const [command, setCommand] = useState(server?.config.command || '');
   const [argsText, setArgsText] = useState(server?.config.args.join('\n') || '');
   const [envText, setEnvText] = useState(
@@ -298,27 +319,62 @@ function McpServerForm({
       ? Object.entries(server.config.env).map(([k, v]) => `${k}=${v}`).join('\n')
       : ''
   );
+  const [url, setUrl] = useState(server?.config.url || '');
+  const [headersText, setHeadersText] = useState(
+    server?.config.headers
+      ? Object.entries(server.config.headers).map(([k, v]) => `${k}: ${v}`).join('\n')
+      : ''
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = useCallback(async () => {
-    if (!name.trim() || !command.trim()) return;
+    const isValid = name.trim()
+      && (mcpType === 'http' ? !!url.trim() : !!command.trim());
+    if (!isValid) return;
     setIsSaving(true);
     try {
-      const args = argsText.split('\n').map((s) => s.trim()).filter(Boolean);
-      const env: Record<string, string> = {};
-      envText.split('\n').forEach((line) => {
-        const trimmed = line.trim();
-        if (!trimmed) return;
-        const eqIdx = trimmed.indexOf('=');
-        if (eqIdx > 0) {
-          env[trimmed.slice(0, eqIdx)] = trimmed.slice(eqIdx + 1);
-        }
-      });
-      await onSave(name.trim(), { command: command.trim(), args, env, type: 'stdio' });
+      if (mcpType === 'http') {
+        const headers: Record<string, string> = {};
+        headersText.split('\n').forEach((line) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          const colonIdx = trimmed.indexOf(':');
+          if (colonIdx > 0) {
+            headers[trimmed.slice(0, colonIdx).trim()] = trimmed.slice(colonIdx + 1).trim();
+          }
+        });
+        await onSave(name.trim(), {
+          command: '',
+          args: [],
+          env: {},
+          type: 'http',
+          url: url.trim(),
+          headers: Object.keys(headers).length > 0 ? headers : undefined,
+        });
+      } else {
+        const args = argsText.split('\n').map((s) => s.trim()).filter(Boolean);
+        const env: Record<string, string> = {};
+        envText.split('\n').forEach((line) => {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          const eqIdx = trimmed.indexOf('=');
+          if (eqIdx > 0) {
+            env[trimmed.slice(0, eqIdx)] = trimmed.slice(eqIdx + 1);
+          }
+        });
+        await onSave(name.trim(), {
+          command: command.trim(),
+          args,
+          env,
+          type: 'stdio',
+          url: undefined,
+          headers: undefined,
+        });
+      }
     } finally {
       setIsSaving(false);
     }
-  }, [name, command, argsText, envText, onSave]);
+  }, [name, mcpType, command, argsText, envText, url, headersText, onSave]);
 
   const inputClass = `w-full px-3 py-2 text-[13px] bg-bg-chat border border-border-subtle
     rounded-lg outline-none focus:border-accent text-text-primary placeholder:text-text-tertiary`;
@@ -338,45 +394,96 @@ function McpServerForm({
           onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}
         />
       </div>
+      {/* Type selector */}
       <div>
-        <label className="text-xs text-text-muted">
-          {t('mcp.command')}
-        </label>
-        <input
-          value={command}
-          onChange={(e) => setCommand(e.target.value)}
-          placeholder={t('mcp.commandPlaceholder')}
-          className={inputClass}
-        />
+        <label className="text-xs text-text-muted">类型</label>
+        <div className="flex gap-2 mt-1">
+          <button
+            onClick={() => setMcpType('stdio')}
+            className={`px-3 py-1.5 text-xs rounded-lg border transition-smooth
+              ${mcpType === 'stdio'
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-border-subtle text-text-muted hover:text-text-primary'}`}
+          >
+            Stdio（命令行）
+          </button>
+          <button
+            onClick={() => setMcpType('http')}
+            className={`px-3 py-1.5 text-xs rounded-lg border transition-smooth
+              ${mcpType === 'http'
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-border-subtle text-text-muted hover:text-text-primary'}`}
+          >
+            HTTP（远程）
+          </button>
+        </div>
       </div>
-      <div>
-        <label className="text-xs text-text-muted">
-          {t('mcp.args')}
-        </label>
-        <textarea
-          value={argsText}
-          onChange={(e) => setArgsText(e.target.value)}
-          placeholder={t('mcp.argsHint')}
-          rows={2}
-          className={`${inputClass} resize-none font-mono`}
-        />
-      </div>
-      <div>
-        <label className="text-xs text-text-muted">
-          {t('mcp.env')}
-        </label>
-        <textarea
-          value={envText}
-          onChange={(e) => setEnvText(e.target.value)}
-          placeholder={t('mcp.envHint')}
-          rows={2}
-          className={`${inputClass} resize-none font-mono`}
-        />
-      </div>
+
+      {mcpType === 'http' ? (
+        <>
+          <div>
+            <label className="text-xs text-text-muted">URL</label>
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com/mcp/sse"
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-text-muted">Headers（可选，每行一个 "Key: Value"）</label>
+            <textarea
+              value={headersText}
+              onChange={(e) => setHeadersText(e.target.value)}
+              placeholder="Authorization: Bearer sk-xxx"
+              rows={3}
+              className={`${inputClass} resize-none font-mono`}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          <div>
+            <label className="text-xs text-text-muted">
+              {t('mcp.command')}
+            </label>
+            <input
+              value={command}
+              onChange={(e) => setCommand(e.target.value)}
+              placeholder={t('mcp.commandPlaceholder')}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-text-muted">
+              {t('mcp.args')}
+            </label>
+            <textarea
+              value={argsText}
+              onChange={(e) => setArgsText(e.target.value)}
+              placeholder={t('mcp.argsHint')}
+              rows={2}
+              className={`${inputClass} resize-none font-mono`}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-text-muted">
+              {t('mcp.env')}
+            </label>
+            <textarea
+              value={envText}
+              onChange={(e) => setEnvText(e.target.value)}
+              placeholder={t('mcp.envHint')}
+              rows={2}
+              className={`${inputClass} resize-none font-mono`}
+            />
+          </div>
+        </>
+      )}
       <div className="flex gap-3">
         <button
           onClick={handleSave}
-          disabled={!name.trim() || !command.trim() || isSaving}
+          disabled={!name.trim() || (mcpType === 'http' ? !url.trim() : !command.trim()) || isSaving}
           className="flex-1 px-4 py-2 text-[13px] font-medium bg-accent text-text-inverse rounded-lg
             hover:bg-accent-hover disabled:opacity-40 transition-smooth"
         >

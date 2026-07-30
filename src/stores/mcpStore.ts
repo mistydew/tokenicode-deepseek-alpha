@@ -8,6 +8,8 @@ export interface McpServerConfig {
   args: string[];
   env: Record<string, string>;
   type: string;
+  url?: string;
+  headers?: Record<string, string>;
 }
 
 export interface McpServer {
@@ -86,6 +88,8 @@ function parseServers(mcpServers: Record<string, unknown> | undefined): McpServe
         args: Array.isArray(cfg.args) ? (cfg.args as string[]) : [],
         env: (cfg.env as Record<string, string>) || {},
         type: (cfg.type as string) || 'stdio',
+        url: (cfg.url as string) || undefined,
+        headers: (cfg.headers as Record<string, string>) || undefined,
       },
     };
   });
@@ -94,7 +98,8 @@ function parseServers(mcpServers: Record<string, unknown> | undefined): McpServe
 function isServerConfig(raw: unknown): boolean {
   return !!raw
     && typeof raw === 'object'
-    && typeof (raw as Record<string, unknown>).command === 'string';
+    && (typeof (raw as Record<string, unknown>).command === 'string'
+        || typeof (raw as Record<string, unknown>).url === 'string');
 }
 
 function getMcpRecord(data: Record<string, unknown>): Record<string, unknown> | undefined {
@@ -199,14 +204,14 @@ function parseCodexMcpServers(toml: string): McpServer[] {
   }
 
   return Object.entries(servers)
-    .filter(([, config]) => config.command)
+    .filter(([, config]) => config.command || config.url)
     .map(([name, config]) => ({ name, config }));
 }
 
 function serverKey(server: McpServer): string {
   return [
     server.name,
-    server.config.command,
+    server.config.command || server.config.url,
     server.config.args.join('\u0001'),
   ].join('\u0002').toLowerCase();
 }
@@ -226,6 +231,22 @@ function mergeDiscovered(
     source,
     imported: importedNames.has(server.name),
   });
+}
+
+function buildMcpEntry(config: McpServerConfig): Record<string, unknown> {
+  const entry: Record<string, unknown> = {
+    type: config.type || 'stdio',
+  };
+  if (config.command) {
+    entry.command = config.command;
+    if (config.args.length > 0) entry.args = config.args;
+    if (Object.keys(config.env).length > 0) entry.env = config.env;
+  }
+  if (config.url) entry.url = config.url;
+  if (config.headers && Object.keys(config.headers).length > 0) {
+    entry.headers = config.headers;
+  }
+  return entry;
 }
 
 // --- Store ---
@@ -328,12 +349,7 @@ export const useMcpStore = create<McpState>()((set, get) => ({
     );
 
     for (const server of candidates) {
-      mcpServers[server.name] = {
-        command: server.config.command,
-        args: server.config.args,
-        env: Object.keys(server.config.env).length > 0 ? server.config.env : undefined,
-        type: server.config.type || 'stdio',
-      };
+      mcpServers[server.name] = buildMcpEntry(server.config);
     }
 
     json.mcpServers = mcpServers;
@@ -353,12 +369,7 @@ export const useMcpStore = create<McpState>()((set, get) => ({
   addServer: async (name, config) => {
     const json = await readClaudeJson();
     const mcpServers = (json.mcpServers as Record<string, unknown>) || {};
-    mcpServers[name] = {
-      command: config.command,
-      args: config.args,
-      env: Object.keys(config.env).length > 0 ? config.env : undefined,
-      type: config.type,
-    };
+    mcpServers[name] = buildMcpEntry(config);
     json.mcpServers = mcpServers;
     await writeClaudeJson(json);
     const servers = parseServers(mcpServers);
@@ -371,12 +382,7 @@ export const useMcpStore = create<McpState>()((set, get) => ({
     if (oldName !== newName) {
       delete mcpServers[oldName];
     }
-    mcpServers[newName] = {
-      command: config.command,
-      args: config.args,
-      env: Object.keys(config.env).length > 0 ? config.env : undefined,
-      type: config.type,
-    };
+    mcpServers[newName] = buildMcpEntry(config);
     json.mcpServers = mcpServers;
     await writeClaudeJson(json);
     const servers = parseServers(mcpServers);

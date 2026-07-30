@@ -3655,6 +3655,14 @@ async fn export_session_json(path: String, output_path: String) -> Result<(), St
     Ok(())
 }
 
+/// Get the user's home directory path
+#[tauri::command]
+fn get_home_dir() -> Result<String, String> {
+    dirs::home_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .ok_or_else(|| "Cannot find home directory".to_string())
+}
+
 /// List recent projects by scanning ~/.claude/projects/ directory names
 #[tauri::command]
 async fn list_recent_projects() -> Result<Vec<Value>, String> {
@@ -7959,6 +7967,7 @@ pub fn run() {
             export_session_markdown,
             export_session_json,
             list_recent_projects,
+            get_home_dir,
             watch_directory,
             unwatch_directory,
             save_temp_file,
