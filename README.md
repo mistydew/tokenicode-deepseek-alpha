@@ -2,6 +2,11 @@
 
 ## 更新记录
 
+### v1.0.6
+
+- 修复设置页 AI 头像和用户头像无法从本地上传的问题，选图后可以正常预览、裁剪并保存。
+- 修复窗口上下文用量在新一轮消息开始或重新查看时意外归零的问题；上下文计算现在保留稳定快照，并计入缓存输入 token。
+
 ### v1.0.1
 
 - 以 `v0.10.12-alpha.1` 为完整功能与界面基线重新发布；后续 `0.10.13` 至 `0.10.17` 的功能不包含在此版本中。
@@ -165,11 +170,8 @@
 
 请到 GitHub Releases 下载对应系统的安装包：
 
-- Windows x64 便携版：`tokenicode-deepseek-alpha-v1.0.1-windows-x64.exe`
-- Windows x64 安装版：`tokenicode-deepseek-alpha-v1.0.1-windows-x64-setup.exe`
-- Windows x64 MSI：`tokenicode-deepseek-alpha-v1.0.1-windows-x64.msi`
-- macOS Apple Silicon：`tokenicode-deepseek-alpha-v1.0.1-macos-apple-silicon-1.0.1_aarch64.dmg`
-- macOS Intel：`tokenicode-deepseek-alpha-v1.0.1-macos-intel-1.0.1_x64.dmg`
+- Windows x64 便携版：`tokenicode-deepseek-alpha-v1.0.6-windows-x64.exe`
+- Windows x64 安装版：`tokenicode-deepseek-alpha-v1.0.6-windows-x64-setup.exe`
 
 下载后双击运行即可。首次运行时请按需要配置 CC Switch / DeepSeek API。
 

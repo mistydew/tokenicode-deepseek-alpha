@@ -13,6 +13,7 @@ import {
   getContextWindowForModel,
   getAutoCompactThreshold,
 } from '../../stores/settingsStore';
+import { getContextUsedTokens } from '../../lib/context-usage';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useFileStore } from '../../stores/fileStore';
 import { useAgentStore } from '../../stores/agentStore';
@@ -236,6 +237,7 @@ function ActivityIndicator({ activityStatus, sessionMeta }: {
     turnStartTime?: number;
     outputTokens?: number;
     inputTokens?: number;
+    contextInputTokens?: number;
     lastProgressAt?: number;
     spawnedModel?: string;
     snapshotModel?: string;
@@ -273,7 +275,7 @@ function ActivityIndicator({ activityStatus, sessionMeta }: {
     resolvedModel,
     sessionMeta.snapshotContextWindowMode ?? contextWindowMode,
   );
-  const inputTokens = sessionMeta.inputTokens || 0;
+  const inputTokens = sessionMeta.contextInputTokens ?? sessionMeta.inputTokens ?? 0;
   const contextWarning = inputTokens > contextWindow * 0.6;
 
   // Stall detection: 120s of silence (no stream activity), not total elapsed time.
@@ -330,9 +332,7 @@ function ContextMeter({ sessionMeta, tabId, sessionStatus }: {
   const effectiveContextMode = sessionMeta.snapshotContextWindowMode ?? contextWindowMode;
   const contextWindow = getContextWindowForModel(modelForContext, effectiveContextMode);
   const compactThreshold = getAutoCompactThreshold(modelForContext, effectiveContextMode, autoCompactThresholdTokens);
-  const used = Math.min(contextWindow, Math.max(0,
-    (sessionMeta.inputTokens ?? 0) + (sessionMeta.outputTokens ?? 0),
-  ));
+  const used = Math.min(contextWindow, getContextUsedTokens(sessionMeta));
   const available = Math.max(0, contextWindow - used);
   const percent = Math.min(100, Math.round((used / contextWindow) * 100));
   const thresholdPercent = Math.min(100, Math.round((compactThreshold / contextWindow) * 100));

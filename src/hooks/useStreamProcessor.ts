@@ -14,6 +14,13 @@ import { bridge, onClaudeStream, onClaudeStderr } from '../lib/tauri-bridge';
 import { envFingerprint, resolveModelForProvider, resolveThinkingLevelForProvider } from '../lib/api-provider';
 import { useProviderStore } from '../stores/providerStore';
 import { t } from '../lib/i18n';
+import {
+  getContextInputTokens,
+  getContextOutputTokens,
+  getContextUsedTokens,
+  hasMeaningfulContextUsage,
+  type TokenUsage,
+} from '../lib/context-usage';
 
 // --- Error classification for user-facing messages ---
 // Each pattern maps to a friendly i18n key. Matched errors show the friendly
@@ -46,17 +53,37 @@ export function formatErrorForUser(raw: string): string {
 const TOKEN_STATE_KEY = 'tokenicode_token_state_v2';
 const UUID_INDEX_KEY = 'tokenicode_claude_uuids';
 
-function _persistTokenState(tabId: string, meta: { inputTokens?: number; outputTokens?: number; totalInputTokens?: number; totalOutputTokens?: number }) {
+function _persistTokenState(tabId: string, meta: {
+  inputTokens?: number;
+  outputTokens?: number;
+  contextInputTokens?: number;
+  contextOutputTokens?: number;
+  totalInputTokens?: number;
+  totalOutputTokens?: number;
+}) {
   try {
     const data = JSON.parse(sessionStorage.getItem(TOKEN_STATE_KEY) || '{}');
     data[tabId] = {
       inputTokens: meta.inputTokens,
       outputTokens: meta.outputTokens,
+      contextInputTokens: meta.contextInputTokens,
+      contextOutputTokens: meta.contextOutputTokens,
       totalInputTokens: meta.totalInputTokens,
       totalOutputTokens: meta.totalOutputTokens,
     };
     sessionStorage.setItem(TOKEN_STATE_KEY, JSON.stringify(data));
   } catch {/* ignore */}
+}
+
+function contextSnapshot(usage: TokenUsage | undefined): {
+  contextInputTokens: number;
+  contextOutputTokens: number;
+} | null {
+  if (!hasMeaningfulContextUsage(usage)) return null;
+  return {
+    contextInputTokens: getContextInputTokens(usage),
+    contextOutputTokens: getContextOutputTokens(usage),
+  };
 }
 
 function _persistClaudeUuid(tabId: string, claudeUuid: string) {
@@ -423,12 +450,14 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           }
         }
         // Track tokens in background sessions (per-turn + cumulative total)
-        if (evt.type === 'message_start' && evt.message?.usage?.input_tokens) {
+        if (evt.type === 'message_start' && evt.message?.usage) {
           const bgTab = store.getTab(tabId);
-          const delta = evt.message.usage.input_tokens;
+          const delta = evt.message.usage.input_tokens || 0;
+          const snapshot = contextSnapshot(evt.message.usage);
           store.setSessionMeta(tabId, {
             inputTokens: (bgTab?.sessionMeta.inputTokens || 0) + delta,
             totalInputTokens: (bgTab?.sessionMeta.totalInputTokens || 0) + delta,
+            ...(snapshot ? { ...snapshot, contextOutputTokens: 0 } : {}),
           });
           const updatedMeta = store.getTab(tabId)?.sessionMeta;
           if (updatedMeta) _persistTokenState(tabId, updatedMeta);
@@ -439,6 +468,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           store.setSessionMeta(tabId, {
             outputTokens: (bgTab?.sessionMeta.outputTokens || 0) + delta,
             totalOutputTokens: (bgTab?.sessionMeta.totalOutputTokens || 0) + delta,
+            contextOutputTokens: getContextOutputTokens(evt.usage),
           });
           const updatedMeta2 = store.getTab(tabId)?.sessionMeta;
           if (updatedMeta2) _persistTokenState(tabId, updatedMeta2);
@@ -614,6 +644,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           const resultOutput = msg.usage?.output_tokens || 0;
           const streamedInput = prevMeta?.inputTokens || 0;
           const streamedOutput = prevMeta?.outputTokens || 0;
+          const snapshot = contextSnapshot(msg.usage);
           store.setSessionMeta(tabId, {
             cost: msg.total_cost_usd,
             duration: msg.duration_ms,
@@ -622,6 +653,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
             outputTokens: resultOutput,
             totalInputTokens: (prevMeta?.totalInputTokens || 0) + (resultInput - streamedInput),
             totalOutputTokens: (prevMeta?.totalOutputTokens || 0) + (resultOutput - streamedOutput),
+            ...(snapshot ? snapshot : {}),
             turnStartTime: undefined,
             lastProgressAt: undefined,
           });
@@ -1094,12 +1126,14 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
         }
 
         // Track input tokens from message_start (per-turn + cumulative total)
-        if (evt.type === 'message_start' && evt.message?.usage?.input_tokens) {
+        if (evt.type === 'message_start' && evt.message?.usage) {
           const meta = useChatStore.getState().getTab(tabId)?.sessionMeta ?? {};
-          const delta = evt.message.usage.input_tokens;
+          const delta = evt.message.usage.input_tokens || 0;
+          const snapshot = contextSnapshot(evt.message.usage);
           setSessionMeta({
             inputTokens: (meta.inputTokens || 0) + delta,
             totalInputTokens: (meta.totalInputTokens || 0) + delta,
+            ...(snapshot ? { ...snapshot, contextOutputTokens: 0 } : {}),
           });
           const updatedMeta = useChatStore.getState().getTab(tabId)?.sessionMeta;
           if (updatedMeta) _persistTokenState(tabId, updatedMeta);
@@ -1112,6 +1146,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           setSessionMeta({
             outputTokens: (meta.outputTokens || 0) + delta,
             totalOutputTokens: (meta.totalOutputTokens || 0) + delta,
+            contextOutputTokens: getContextOutputTokens(evt.usage),
           });
           const updatedMeta2 = useChatStore.getState().getTab(tabId)?.sessionMeta;
           if (updatedMeta2) _persistTokenState(tabId, updatedMeta2);
@@ -1778,6 +1813,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           const resultOutput = msg.usage?.output_tokens || 0;
           const streamedInput = meta.inputTokens || 0;
           const streamedOutput = meta.outputTokens || 0;
+          const snapshot = contextSnapshot(msg.usage);
           setSessionMeta({
             cost: msg.total_cost_usd,
             duration: msg.duration_ms,
@@ -1786,6 +1822,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
             outputTokens: resultOutput,
             totalInputTokens: (meta.totalInputTokens || 0) + (resultInput - streamedInput),
             totalOutputTokens: (meta.totalOutputTokens || 0) + (resultOutput - streamedOutput),
+            ...(snapshot ? snapshot : {}),
             turnStartTime: undefined,
             lastProgressAt: undefined,
           });
@@ -1834,8 +1871,13 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
         // --- Auto-compact: threshold follows the declared context window.
         // Default 200K models compact at 160K; declared 1M models compact at 800K.
         // Fires at most once per session to avoid infinite loops.
-        const resultInputTokens = msg.usage?.input_tokens || 0;
         const compactMeta = useChatStore.getState().getTab(tabId)?.sessionMeta;
+        const resultContextTokens = getContextUsedTokens({
+          inputTokens: msg.usage?.input_tokens,
+          outputTokens: msg.usage?.output_tokens,
+          contextInputTokens: compactMeta?.contextInputTokens,
+          contextOutputTokens: compactMeta?.contextOutputTokens,
+        });
         const compactStdinId = compactMeta?.stdinId;
         const compactModel = compactMeta?.spawnedModel || compactMeta?.snapshotModel || useSettingsStore.getState().selectedModel;
         const compactMode = compactMeta?.snapshotContextWindowMode ?? useSettingsStore.getState().contextWindowMode;
@@ -1844,9 +1886,9 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           compactMode,
           useSettingsStore.getState().autoCompactThresholdTokens,
         );
-        if (resultInputTokens > autoCompactThreshold && !autoCompactFiredRef.current && compactStdinId && msg.subtype === 'success') {
+        if (resultContextTokens > autoCompactThreshold && !autoCompactFiredRef.current && compactStdinId && msg.subtype === 'success') {
           autoCompactFiredRef.current = true;
-          console.log('[TOKENICODE] Auto-compact triggered:', { inputTokens: resultInputTokens, threshold: autoCompactThreshold });
+          console.log('[TOKENICODE] Auto-compact triggered:', { contextTokens: resultContextTokens, threshold: autoCompactThreshold });
           const compactMsgId = generateMessageId();
           addMessage({
             id: compactMsgId,

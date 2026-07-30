@@ -21,6 +21,11 @@ import { useScrollZoom } from './lib/useScrollZoom';
 import { useT } from './lib/i18n';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { loadClaudeUuid } from './hooks/useStreamProcessor';
+import {
+  getContextInputTokens,
+  getContextOutputTokens,
+  hasMeaningfulContextUsage,
+} from './lib/context-usage';
 import './App.css';
 
 // --- Token state cache (survives F5 via sessionStorage) ---
@@ -30,12 +35,23 @@ import './App.css';
 
 const TOKEN_STATE_KEY = 'tokenicode_token_state_v2';
 
-function saveTokenState(tabId: string, meta: { inputTokens?: number; outputTokens?: number; totalInputTokens?: number; totalOutputTokens?: number }) {
+interface PersistedTokenState {
+  inputTokens?: number;
+  outputTokens?: number;
+  contextInputTokens?: number;
+  contextOutputTokens?: number;
+  totalInputTokens?: number;
+  totalOutputTokens?: number;
+}
+
+function saveTokenState(tabId: string, meta: PersistedTokenState) {
   try {
     const data = JSON.parse(sessionStorage.getItem(TOKEN_STATE_KEY) || '{}');
     data[tabId] = {
       inputTokens: meta.inputTokens,
       outputTokens: meta.outputTokens,
+      contextInputTokens: meta.contextInputTokens,
+      contextOutputTokens: meta.contextOutputTokens,
       totalInputTokens: meta.totalInputTokens,
       totalOutputTokens: meta.totalOutputTokens,
     };
@@ -43,7 +59,7 @@ function saveTokenState(tabId: string, meta: { inputTokens?: number; outputToken
   } catch {/* ignore */}
 }
 
-function loadTokenState(tabId: string): { inputTokens?: number; outputTokens?: number; totalInputTokens?: number; totalOutputTokens?: number } | null {
+function loadTokenState(tabId: string): PersistedTokenState | null {
   try {
     const data = JSON.parse(sessionStorage.getItem(TOKEN_STATE_KEY) || '{}');
     return data[tabId] || null;
@@ -291,12 +307,17 @@ function App() {
             }
 
             // Track input tokens from message_start (per-turn + cumulative total)
-            if (evt.type === 'message_start' && evt.message?.usage?.input_tokens) {
+            if (evt.type === 'message_start' && evt.message?.usage) {
               const meta = store.getTab(targetTabId)?.sessionMeta ?? {};
-              const delta = evt.message.usage.input_tokens;
+              const delta = evt.message.usage.input_tokens || 0;
+              const usage = evt.message.usage;
               store.setSessionMeta(targetTabId, {
                 inputTokens: (meta.inputTokens || 0) + delta,
                 totalInputTokens: (meta.totalInputTokens || 0) + delta,
+                ...(hasMeaningfulContextUsage(usage) ? {
+                  contextInputTokens: getContextInputTokens(usage),
+                  contextOutputTokens: 0,
+                } : {}),
               });
               const updated = store.getTab(targetTabId)?.sessionMeta;
               if (updated) saveTokenState(targetTabId, updated);
@@ -309,6 +330,7 @@ function App() {
               store.setSessionMeta(targetTabId, {
                 outputTokens: (meta.outputTokens || 0) + delta,
                 totalOutputTokens: (meta.totalOutputTokens || 0) + delta,
+                contextOutputTokens: getContextOutputTokens(evt.usage),
               });
               const updated = store.getTab(targetTabId)?.sessionMeta;
               if (updated) saveTokenState(targetTabId, updated);
