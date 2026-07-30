@@ -704,8 +704,46 @@ export function ConversationList() {
 
   return (
     <div className="flex flex-col gap-1 px-3">
-      {/* Search + Filters */}
-      <div className="px-1 mb-2">
+      {/* Sticky header: view toggle + search (doesn't scroll with content) */}
+      <div className="sticky top-0 z-10 -mx-3 px-3 pt-0.5 pb-1 bg-bg-sidebar">
+        {/* View mode toggle */}
+        <div className="flex items-center gap-1 px-1 mb-1.5">
+          <button
+            onClick={() => setViewMode('folder')}
+            className={`flex-1 py-1 text-[11px] rounded-lg transition-smooth
+              ${viewMode === 'folder'
+                ? 'bg-accent/10 text-accent font-medium'
+                : 'text-text-tertiary hover:text-text-primary hover:bg-bg-secondary'
+              }`}
+          >
+            <span className="flex items-center justify-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"
+                stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <path d="M2 4h4l2 2h6v7H2V4z" />
+              </svg>
+              {t('conv.viewFolder')}
+            </span>
+          </button>
+          <button
+            onClick={() => setViewMode('recent')}
+            className={`flex-1 py-1 text-[11px] rounded-lg transition-smooth
+              ${viewMode === 'recent'
+                ? 'bg-accent/10 text-accent font-medium'
+                : 'text-text-tertiary hover:text-text-primary hover:bg-bg-secondary'
+              }`}
+          >
+            <span className="flex items-center justify-center gap-1">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"
+                stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <circle cx="8" cy="8" r="6" />
+                <path d="M8 4v4l3 2" />
+              </svg>
+              {t('conv.viewRecent')}
+            </span>
+          </button>
+        </div>
+
+        {/* Search + Filters */}
         <div className="flex items-center gap-2">
           <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 rounded-xl
             bg-bg-secondary border border-border-subtle
@@ -755,43 +793,6 @@ export function ConversationList() {
             </svg>
           </button>
         </div>
-      </div>
-
-      {/* View mode toggle */}
-      <div className="flex items-center gap-1 px-1 mb-1">
-        <button
-          onClick={() => setViewMode('folder')}
-          className={`flex-1 py-1 text-[11px] rounded-lg transition-smooth
-            ${viewMode === 'folder'
-              ? 'bg-accent/10 text-accent font-medium'
-              : 'text-text-tertiary hover:text-text-primary hover:bg-bg-secondary'
-            }`}
-        >
-          <span className="flex items-center justify-center gap-1">
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="none"
-              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-              <path d="M2 4h4l2 2h6v7H2V4z" />
-            </svg>
-            {t('conv.viewFolder')}
-          </span>
-        </button>
-        <button
-          onClick={() => setViewMode('recent')}
-          className={`flex-1 py-1 text-[11px] rounded-lg transition-smooth
-            ${viewMode === 'recent'
-              ? 'bg-accent/10 text-accent font-medium'
-              : 'text-text-tertiary hover:text-text-primary hover:bg-bg-secondary'
-            }`}
-        >
-          <span className="flex items-center justify-center gap-1">
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="none"
-              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-              <circle cx="8" cy="8" r="6" />
-              <path d="M8 4v4l3 2" />
-            </svg>
-            {t('conv.viewRecent')}
-          </span>
-        </button>
       </div>
 
       {/* Loading */}
