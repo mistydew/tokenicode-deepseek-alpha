@@ -8,7 +8,7 @@ import { bridge, SessionListItem } from '../../lib/tauri-bridge';
 import { listen } from '@tauri-apps/api/event';
 import { save } from '@tauri-apps/plugin-dialog';
 import { useT } from '../../lib/i18n';
-import { parseSessionMessages } from '../../lib/session-loader';
+import { parseSessionMessages, computeSessionUsage } from '../../lib/session-loader';
 import { getDateCategory } from '../../lib/date-utils';
 import { isWindows } from '../../lib/platform';
 import { SessionGroup } from './SessionGroup';
@@ -410,6 +410,11 @@ export function ConversationList() {
         return;
       }
       const { messages, agents } = parseSessionMessages(rawMessages);
+
+      // Compute token stats from JSONL stream events so the Ctx meter
+      // shows meaningful numbers for historical sessions (not zero).
+      const tokenUsage = computeSessionUsage(rawMessages);
+      setSessionMeta(sessionId, tokenUsage);
 
       // Apply agents
       for (const agent of agents) {
