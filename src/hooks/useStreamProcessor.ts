@@ -271,7 +271,7 @@ function _scheduleFileTreeRefresh() {
   if (_fileRefreshTimer) return; // already scheduled
   _fileRefreshTimer = setTimeout(() => {
     _fileRefreshTimer = null;
-    useFileStore.getState().refreshTree();
+    useFileStore.getState().refreshDir(useFileStore.getState().rootPath);
   }, 300);
 }
 

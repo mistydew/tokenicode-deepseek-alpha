@@ -135,7 +135,6 @@ function App() {
   const setLastSeenVersion = useSettingsStore((s) => s.setLastSeenVersion);
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
   const loadTree = useFileStore((s) => s.loadTree);
-  const refreshTree = useFileStore((s) => s.refreshTree);
   const markFileChanged = useFileStore((s) => s.markFileChanged);
   const prevDirRef = useRef<string | null>(null);
   const homeDirRef = useRef<string>('');
@@ -615,28 +614,34 @@ function App() {
     };
   }, [workingDirectory, homeDirReady]);
 
-  // Listen for file change events from the watcher
-  // Debounce tree refresh for created/removed events (structure changes)
+  // Listen for file change events from the watcher.
+  // Only refresh expanded directories — unexpanded dirs load fresh on expand.
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const unlisten = onFileChange((event) => {
-      // Defense-in-depth: skip paths under noisy directories (also filtered in Rust)
-      const filtered = event.paths.filter((p) =>
-        !/(^|[/\\])(\.(claude|git)|node_modules|__pycache__)[/\\]/.test(p)
-      );
-      if (filtered.length === 0) return;
-
-      for (const filePath of filtered) {
+      for (const filePath of event.paths) {
         markFileChanged(filePath, event.kind);
       }
 
-      // When files are created or removed, the tree structure changes —
-      // debounce a full tree reload (300ms to batch rapid changes)
+      // When files are created or removed, refresh only the expanded parent directories
       if (event.kind === 'created' || event.kind === 'removed') {
+        const { expandedDirs, refreshDir } = useFileStore.getState();
+        const toRefresh = new Set<string>();
+        for (const p of event.paths) {
+          const lastSep = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+          const parentDir = lastSep > 0 ? p.slice(0, lastSep) : p.slice(0, 1) || '/';
+          if (expandedDirs.has(parentDir)) {
+            toRefresh.add(parentDir);
+          }
+        }
+        if (toRefresh.size === 0) return;
+
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = setTimeout(() => {
-          refreshTree();
+        refreshTimerRef.current = setTimeout(async () => {
+          for (const dir of toRefresh) {
+            await refreshDir(dir);
+          }
           refreshTimerRef.current = null;
         }, 300);
       }
@@ -645,7 +650,7 @@ function App() {
       unlisten.then((fn) => fn());
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
-  }, [markFileChanged, refreshTree]);
+  }, [markFileChanged]);
 
   return (
     <>

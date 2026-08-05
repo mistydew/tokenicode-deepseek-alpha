@@ -269,7 +269,7 @@ export function useFileAttachments() {
                   console.error('Failed to copy file to project:', name, err);
                 }
               }
-              useFileStore.getState().refreshTree(rootPath);
+              useFileStore.getState().refreshDir(rootPath);
             })();
           }
         } else {

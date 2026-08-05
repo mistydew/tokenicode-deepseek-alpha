@@ -362,6 +362,9 @@ export const bridge = {
   readFileTree: (path: string, depth?: number) =>
     invoke<FileNode[]>('read_file_tree', { path, depth }),
 
+  searchFiles: (path: string, query: string) =>
+    invoke<FileNode[]>('search_files', { root: path, query }),
+
   readFileContent: (path: string) =>
     invoke<string>('read_file_content', { path }),
 

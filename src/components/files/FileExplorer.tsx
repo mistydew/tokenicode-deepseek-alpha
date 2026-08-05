@@ -212,26 +212,6 @@ interface FlatMatch {
   relDir: string;
 }
 
-function collectMatches(nodes: FileNode[], query: string, rootPrefix: string): FlatMatch[] {
-  const results: FlatMatch[] = [];
-  function walk(node: FileNode) {
-    if (node.name.toLowerCase().includes(query)) {
-      // Compute relative directory (parent path minus root prefix)
-      const lastSep = node.path.lastIndexOf('/');
-      const parentPath = lastSep > 0 ? node.path.slice(0, lastSep) : '';
-      const relDir = parentPath.startsWith(rootPrefix)
-        ? parentPath.slice(rootPrefix.length).replace(/^\//, '')
-        : parentPath;
-      results.push({ node, relDir });
-    }
-    if (node.children) {
-      for (const child of node.children) walk(child);
-    }
-  }
-  for (const n of nodes) walk(n);
-  return results;
-}
-
 function SearchResultItem({
   match,
   onContextMenu,
@@ -308,9 +288,14 @@ function TreeNode({
   onCreateSubmit: () => void;
   onCreateCancel: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const isExpanded = useFileStore((s) => s.expandedDirs.has(node.path));
+  const isLoadingChildren = useFileStore((s) => s.loadingDirs.has(node.path));
+  const childEntries = useFileStore((s) => s.dirContents.get(node.path));
   const selectedFile = useFileStore((s) => s.selectedFile);
   const selectFile = useFileStore((s) => s.selectFile);
+  const expandDir = useFileStore((s) => s.expandDir);
+  const collapseDir = useFileStore((s) => s.collapseDir);
+  const showHiddenFiles = useSettingsStore((s) => s.showHiddenFiles);
   const changeKind = useFileStore((s) => s.changedFiles.get(node.path));
   const dirPrefix = node.path + '/';
   const hasChildChanges = useFileStore((s) =>
@@ -320,11 +305,13 @@ function TreeNode({
   );
   const isSelected = selectedFile === node.path;
 
-  const isExpanded = expanded;
-
   const handleClick = (e: React.MouseEvent) => {
     if (node.is_dir) {
-      setExpanded(!expanded);
+      if (isExpanded) {
+        collapseDir(node.path);
+      } else {
+        expandDir(node.path);
+      }
     } else {
       if ((e.ctrlKey || e.metaKey) && useSettingsStore.getState().ctrlClickOpenExternally) {
         bridge.openWithDefaultApp(node.path);
@@ -376,7 +363,7 @@ function TreeNode({
                     .then(() => {
                       const dir = useSettingsStore.getState().workingDirectory
                         || useFileStore.getState().rootPath;
-                      if (dir) useFileStore.getState().refreshTree(dir);
+                      if (dir) useFileStore.getState().refreshDir(dir);
                     })
                     .catch((err: unknown) => console.error('Failed to move file:', err));
                 } else if (!result.droppedInTree) {
@@ -442,7 +429,7 @@ function TreeNode({
             flex-shrink-0" />
         )}
       </button>
-      {node.is_dir && isExpanded && node.children && (
+      {node.is_dir && isExpanded && (
         <div>
           {creatingIn?.dir === node.path && (
             <div className="flex items-center gap-2 py-1 px-2"
@@ -466,24 +453,34 @@ function TreeNode({
               />
             </div>
           )}
-          {node.children.map((child) => (
-            <TreeNode
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              onContextMenu={onContextMenu}
-              renamingPath={renamingPath}
-              renameValue={renameValue}
-              onRenameChange={onRenameChange}
-              onRenameSubmit={onRenameSubmit}
-              onRenameCancel={onRenameCancel}
-              creatingIn={creatingIn}
-              createName={createName}
-              onCreateNameChange={onCreateNameChange}
-              onCreateSubmit={onCreateSubmit}
-              onCreateCancel={onCreateCancel}
-            />
-          ))}
+          {isLoadingChildren ? (
+            <div className="flex items-center justify-center py-2">
+              <div className="w-4 h-4 border-2 border-accent/30
+                border-t-accent rounded-full animate-spin" />
+            </div>
+          ) : childEntries ? (
+            (() => {
+              const visible = showHiddenFiles ? childEntries : childEntries.filter((n) => !n.name.startsWith('.'));
+              return visible.map((child) => (
+                <TreeNode
+                  key={child.path}
+                  node={child}
+                  depth={depth + 1}
+                  onContextMenu={onContextMenu}
+                  renamingPath={renamingPath}
+                  renameValue={renameValue}
+                  onRenameChange={onRenameChange}
+                  onRenameSubmit={onRenameSubmit}
+                  onRenameCancel={onRenameCancel}
+                  creatingIn={creatingIn}
+                  createName={createName}
+                  onCreateNameChange={onCreateNameChange}
+                  onCreateSubmit={onCreateSubmit}
+                  onCreateCancel={onCreateCancel}
+                />
+              ));
+            })()
+          ) : null}
         </div>
       )}
     </div>
@@ -493,14 +490,14 @@ function TreeNode({
 // --- Main Component ---
 export function FileExplorer() {
   const t = useT();
-  const tree = useFileStore((s) => s.tree);
+  const dirContents = useFileStore((s) => s.dirContents);
   const isLoading = useFileStore((s) => s.isLoading);
   const rootPath = useFileStore((s) => s.rootPath);
   const changedFiles = useFileStore((s) => s.changedFiles);
   const clearChangedFiles = useFileStore((s) => s.clearChangedFiles);
   const workingDirectory = useSettingsStore((s) => s.workingDirectory);
 
-  const refreshTree = useFileStore((s) => s.refreshTree);
+  const refreshDir = useFileStore((s) => s.refreshDir);
   const createFile = useFileStore((s) => s.createFile);
   const createFolder = useFileStore((s) => s.createFolder);
   const isDragOverTree = useFileStore((s) => s.isDragOverTree);
@@ -508,6 +505,8 @@ export function FileExplorer() {
   const toggleHiddenFiles = useSettingsStore((s) => s.toggleHiddenFiles);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<FileNode[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -521,15 +520,30 @@ export function FileExplorer() {
   const [creatingIn, setCreatingIn] = useState<{ dir: string; type: 'file' | 'folder' } | null>(null);
   const [createName, setCreateName] = useState('');
 
-  const filteredTree = useMemo(() => {
-    if (showHiddenFiles) return tree;
-    function filterNodes(nodes: FileNode[]): FileNode[] {
-      return nodes
-        .filter((n) => !n.name.startsWith('.'))
-        .map((n) => n.children ? { ...n, children: filterNodes(n.children) } : n);
+  const rootEntries = useMemo(() => {
+    const entries = dirContents.get(rootPath || '') || [];
+    if (showHiddenFiles) return entries;
+    return entries.filter((n) => !n.name.startsWith('.'));
+  }, [dirContents, rootPath, showHiddenFiles]);
+
+  // Search effect: use Rust search_files for disk-backed search independent of loaded nodes
+  useEffect(() => {
+    if (!searchQuery || !rootPath) {
+      setSearchResults([]);
+      return;
     }
-    return filterNodes(tree);
-  }, [tree, showHiddenFiles]);
+    let cancelled = false;
+    setIsSearching(true);
+    bridge.searchFiles(rootPath, searchQuery).then((results) => {
+      if (!cancelled) {
+        setSearchResults(results);
+        setIsSearching(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setIsSearching(false);
+    });
+    return () => { cancelled = true; };
+  }, [searchQuery, rootPath]);
 
   const changedCount = changedFiles.size;
 
@@ -557,11 +571,11 @@ export function FileExplorer() {
     try {
       await bridge.copyFile(clipboardPath, dest);
       setClipboardPath(null);
-      refreshTree();
+      refreshDir(targetDir);
     } catch {
       // Silently fail
     }
-  }, [clipboardPath, refreshTree]);
+  }, [clipboardPath, refreshDir]);
 
   const handleStartRename = useCallback((path: string) => {
     const name = path.split(/[\\/]/).pop() || '';
@@ -583,11 +597,11 @@ export function FileExplorer() {
     try {
       await bridge.renameFile(renamingPath, dest);
       setRenamingPath(null);
-      refreshTree();
+      refreshDir(dir);
     } catch {
       setRenamingPath(null);
     }
-  }, [renamingPath, renameValue, refreshTree]);
+  }, [renamingPath, renameValue, refreshDir]);
 
   const handleRenameCancel = useCallback(() => {
     setRenamingPath(null);
@@ -601,12 +615,13 @@ export function FileExplorer() {
     if (!deleteTarget) return;
     try {
       await bridge.deleteFile(deleteTarget.path);
+      const parentDir = deleteTarget.path.substring(0, Math.max(deleteTarget.path.lastIndexOf('/'), deleteTarget.path.lastIndexOf('\\')));
       setDeleteTarget(null);
-      refreshTree();
+      refreshDir(parentDir);
     } catch {
       setDeleteTarget(null);
     }
-  }, [deleteTarget, refreshTree]);
+  }, [deleteTarget, refreshDir]);
 
   const handleInsertToChat = useCallback((path: string) => {
     const tabId = useSessionStore.getState().selectedSessionId;
@@ -751,7 +766,7 @@ export function FileExplorer() {
           <button onClick={() => {
               clearChangedFiles();
               const dir = workingDirectory || rootPath;
-              if (dir) refreshTree(dir);
+              if (dir) refreshDir(dir);
             }}
             className="p-1.5 rounded-lg hover:bg-bg-secondary active:bg-bg-tertiary
               text-text-tertiary hover:text-text-secondary transition-smooth"
@@ -813,32 +828,39 @@ export function FileExplorer() {
           </div>
         )}
         <div className="h-full overflow-y-auto py-1">
-        {isLoading && filteredTree.length === 0 ? (
+        {isLoading && rootEntries.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <div className="w-5 h-5 border-2 border-accent/30
               border-t-accent rounded-full animate-spin" />
           </div>
-        ) : filteredTree.length > 0 ? (
+        ) : rootEntries.length > 0 ? (
           searchQuery ? (
-            // --- Flat search results ---
-            (() => {
-              const matches = collectMatches(filteredTree, searchQuery.toLowerCase(), rootPath || '');
-              return matches.length > 0 ? (
-                <div className="py-1">
-                  {matches.map((m) => (
+            // --- Flat search results (disk-backed via Rust search_files) ---
+            isSearching ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-5 h-5 border-2 border-accent/30
+                  border-t-accent rounded-full animate-spin" />
+              </div>
+            ) : searchResults.length > 0 ? (
+              <div className="py-1">
+                {searchResults.map((node) => {
+                  const lastSep = Math.max(node.path.lastIndexOf('/'), node.path.lastIndexOf('\\'));
+                  const parentPath = lastSep > 0 ? node.path.slice(0, lastSep) : '';
+                  const relDir = rootPath ? parentPath.slice(rootPath.length).replace(/^[/\\]/, '') : '';
+                  return (
                     <SearchResultItem
-                      key={m.node.path}
-                      match={m}
+                      key={node.path}
+                      match={{ node, relDir }}
                       onContextMenu={handleContextMenu}
                     />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-xs text-text-tertiary">
-                  {t('files.noFiles')}
-                </div>
-              );
-            })()
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-xs text-text-tertiary">
+                {t('files.noFiles')}
+              </div>
+            )
           ) : (
             // --- Normal tree view ---
             <>
@@ -866,7 +888,7 @@ export function FileExplorer() {
                   />
                 </div>
               )}
-              {filteredTree.map((node) => (
+              {rootEntries.map((node) => (
                 <TreeNode
                   key={node.path}
                   node={node}

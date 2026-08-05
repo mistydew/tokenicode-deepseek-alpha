@@ -3668,6 +3668,55 @@ async fn copy_file(src: String, dest: String) -> Result<(), String> {
         .map_err(|e| format!("Cannot copy file: {}", e))
 }
 
+/// Search files recursively, matching filenames case-insensitively against query.
+/// Returns a flat list of matching FileNode entries.
+#[tauri::command]
+async fn search_files(root: String, query: String) -> Result<Vec<FileNode>, String> {
+    let root_path = std::path::Path::new(&root);
+    if !root_path.exists() {
+        return Err("Directory does not exist".into());
+    }
+    let query_lower = query.to_lowercase();
+
+    const IGNORED_DIRS: &[&str] = &[
+        "node_modules", "target", "__pycache__", ".git", ".DS_Store", "Thumbs.db",
+        ".venv", "venv", ".env", "dist", "build", ".next", ".nuxt", ".parcel-cache",
+        "coverage", ".turbo", ".svelte-kit", ".claude", "AppData", ".cache",
+    ];
+
+    fn walk(dir: &std::path::Path, query: &str) -> Vec<FileNode> {
+        let mut results = vec![];
+        let entries = match std::fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return results,
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if IGNORED_DIRS.iter().any(|seg| name == *seg) {
+                continue;
+            }
+            let path = entry.path();
+            let is_dir = path.is_dir();
+            let name_lower = name.to_lowercase();
+            if name_lower.contains(query) {
+                let children = if is_dir { Some(vec![]) } else { None };
+                results.push(FileNode {
+                    name: name.clone(),
+                    path: path.to_string_lossy().to_string(),
+                    is_dir,
+                    children,
+                });
+            }
+            if is_dir {
+                results.extend(walk(&path, query));
+            }
+        }
+        results
+    }
+
+    Ok(walk(root_path, &query_lower))
+}
+
 #[tauri::command]
 async fn rename_file(src: String, dest: String) -> Result<(), String> {
     reject_unsafe_path(&src)?;
@@ -3895,6 +3944,8 @@ async fn watch_directory(
         "target",
         "__pycache__",
         ".venv",
+        "AppData",
+        ".cache",
     ];
 
     // Shared buffer: events accumulate here between flush cycles.
@@ -8214,6 +8265,7 @@ pub fn run() {
             list_recent_projects,
             watch_directory,
             unwatch_directory,
+            search_files,
             save_temp_file,
             get_file_size,
             check_file_access,

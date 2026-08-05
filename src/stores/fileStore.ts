@@ -9,16 +9,21 @@ const _pendingChanges = new Map<string, FileChangeKind>();
 let _changeFlushRaf = 0;
 
 interface FileState {
-  tree: FileNode[];
+  rootPath: string;
+
+  // Flat directory cache — one entry per navigated-to directory, single level only
+  dirContents: Map<string, FileNode[]>;
+  loadingDirs: Set<string>;
+  expandedDirs: Set<string>;
+
   isLoading: boolean;
   selectedFile: string | null;
   fileContent: string | null;
   isLoadingContent: boolean;
   previewMode: PreviewMode;
-  rootPath: string;
 
   // Editing state
-  editContent: string | null;     // buffer for edits (null = not dirty)
+  editContent: string | null;
   isSaving: boolean;
 
   // Unsaved changes navigation guard
@@ -38,9 +43,14 @@ interface FileState {
   // External drag-drop state
   isDragOverTree: boolean;
 
+  /** Load the root directory (single level). Clears all caches on directory switch. */
   loadTree: (path: string) => Promise<void>;
-  /** Refresh the tree without clearing change markers. Optional path overrides rootPath. */
-  refreshTree: (overridePath?: string) => Promise<void>;
+  /** Fetch a directory's entries and mark it expanded. */
+  expandDir: (path: string) => Promise<void>;
+  /** Mark a directory as collapsed. */
+  collapseDir: (path: string) => void;
+  /** Re-read a single directory level. Only refreshes if the dir is already cached. */
+  refreshDir: (path: string) => Promise<void>;
   selectFile: (path: string) => Promise<void>;
   clearSelection: () => void;
   closePreview: () => void;
@@ -48,7 +58,6 @@ interface FileState {
   setEditContent: (content: string) => void;
   saveFile: () => Promise<void>;
   discardEdits: () => void;
-  setRootPath: (path: string) => void;
   fetchRecentProjects: () => Promise<void>;
   /** Reload the currently previewed file content without toggling selection */
   reloadContent: () => Promise<void>;
@@ -66,13 +75,15 @@ interface FileState {
 }
 
 export const useFileStore = create<FileState>()((set, get) => ({
-  tree: [],
+  rootPath: '',
+  dirContents: new Map(),
+  loadingDirs: new Set(),
+  expandedDirs: new Set(),
   isLoading: false,
   selectedFile: null,
   fileContent: null,
   isLoadingContent: false,
   previewMode: 'preview' as PreviewMode,
-  rootPath: '',
   editContent: null,
   isSaving: false,
   pendingNavigation: null,
@@ -87,18 +98,18 @@ export const useFileStore = create<FileState>()((set, get) => ({
     if (!path) return;
     const prevRoot = get().rootPath;
     const isNewDir = path !== prevRoot;
-    // Always show loading on first load or directory change
     set({
       rootPath: path,
       isLoading: true,
-      // Clear stale tree immediately when switching directories
-      ...(isNewDir ? { tree: [] } : {}),
+      // Clear all caches on directory switch
+      ...(isNewDir ? { dirContents: new Map(), expandedDirs: new Set(), loadingDirs: new Set(), changedFiles: new Map(), directoryMissing: false } : {}),
     });
     try {
-      const tree = await bridge.readFileTree(path, 8);
-      // Guard: only apply if rootPath hasn't changed during async load
+      const entries = await bridge.readFileTree(path, 1);
       if (get().rootPath === path) {
-        set({ tree, isLoading: false, changedFiles: new Map(), directoryMissing: false });
+        const next = new Map(get().dirContents);
+        next.set(path, entries);
+        set({ dirContents: next, isLoading: false, changedFiles: new Map(), directoryMissing: false });
       }
     } catch (err) {
       if (get().rootPath === path) {
@@ -108,21 +119,56 @@ export const useFileStore = create<FileState>()((set, get) => ({
     }
   },
 
-  refreshTree: async (overridePath?: string) => {
-    const dir = overridePath || get().rootPath;
-    if (!dir) return;
+  expandDir: async (path: string) => {
+    const { dirContents, expandedDirs, loadingDirs } = get();
+    const nextExpanded = new Set(expandedDirs);
+    nextExpanded.add(path);
+    set({ expandedDirs: nextExpanded });
+
+    // Already cached — nothing to fetch
+    if (dirContents.has(path)) return;
+
+    // Already loading — avoid duplicate fetch
+    if (loadingDirs.has(path)) return;
+
+    const nextLoading = new Set(loadingDirs);
+    nextLoading.add(path);
+    set({ loadingDirs: nextLoading });
+
     try {
-      const tree = await bridge.readFileTree(dir, 8);
-      // Sync rootPath if override was used and differs
-      if (overridePath && overridePath !== get().rootPath) {
-        set({ tree, rootPath: overridePath });
-      } else {
-        set({ tree });
+      const entries = await bridge.readFileTree(path, 1);
+      const next = new Map(get().dirContents);
+      next.set(path, entries);
+      // Only apply if still expanded (not collapsed during fetch)
+      if (get().expandedDirs.has(path)) {
+        const doneLoading = new Set(get().loadingDirs);
+        doneLoading.delete(path);
+        set({ dirContents: next, loadingDirs: doneLoading });
       }
-    } catch (err) {
-      if (String(err).includes('does not exist')) {
-        set({ directoryMissing: true, tree: [] });
-      }
+    } catch {
+      // Clean up loading state silently
+      const doneLoading = new Set(get().loadingDirs);
+      doneLoading.delete(path);
+      set({ loadingDirs: doneLoading });
+    }
+  },
+
+  collapseDir: (path: string) => {
+    const next = new Set(get().expandedDirs);
+    next.delete(path);
+    set({ expandedDirs: next });
+  },
+
+  refreshDir: async (path: string) => {
+    // Only refresh dirs that are currently expanded
+    if (!get().expandedDirs.has(path)) return;
+    try {
+      const entries = await bridge.readFileTree(path, 1);
+      const next = new Map(get().dirContents);
+      next.set(path, entries);
+      set({ dirContents: next });
+    } catch {
+      // Silently fail — keep previous entries
     }
   },
 
@@ -130,19 +176,16 @@ export const useFileStore = create<FileState>()((set, get) => ({
     const { selectedFile, editContent, fileContent } = get();
     const isDirty = editContent !== null && editContent !== fileContent;
 
-    // If dirty and trying to navigate to a different file, show dialog
     if (isDirty && path !== selectedFile) {
       set({ pendingNavigation: path, showUnsavedDialog: true });
       return;
     }
 
-    // Toggle selection: click again to deselect
     if (selectedFile === path) {
       set({ selectedFile: null, fileContent: null, isLoadingContent: false, editContent: null });
     } else {
       set({ selectedFile: path, fileContent: null, isLoadingContent: true, previewMode: 'preview', editContent: null });
 
-      // Binary-preview files: skip text reading, render with file:// URL in FilePreview
       const ext = path.split('.').pop()?.toLowerCase() || '';
       const BINARY_PREVIEW = new Set([
         'png','jpg','jpeg','gif','webp','bmp','ico',
@@ -151,7 +194,6 @@ export const useFileStore = create<FileState>()((set, get) => ({
       ]);
 
       if (BINARY_PREVIEW.has(ext)) {
-        // Load binary files as base64 data URL for rendering in webview
         try {
           const dataUrl = await bridge.readFileBase64(path);
           if (get().selectedFile === path) {
@@ -165,7 +207,6 @@ export const useFileStore = create<FileState>()((set, get) => ({
       } else {
         try {
           const content = await bridge.readFileContent(path);
-          // Only update if selectedFile hasn't changed during the async call
           if (get().selectedFile === path) {
             set({ fileContent: content, isLoadingContent: false });
           }
@@ -185,7 +226,6 @@ export const useFileStore = create<FileState>()((set, get) => ({
   setPreviewMode: (mode: PreviewMode) => {
     const state = get();
     if (mode === 'edit') {
-      // Entering edit mode: initialize editContent from fileContent
       set({ previewMode: mode, editContent: state.fileContent });
     } else {
       set({ previewMode: mode });
@@ -200,7 +240,6 @@ export const useFileStore = create<FileState>()((set, get) => ({
     set({ isSaving: true });
     try {
       await bridge.writeFileContent(selectedFile, editContent);
-      // Update fileContent to match saved content
       set({ fileContent: editContent, editContent: null, isSaving: false, previewMode: 'preview' });
     } catch {
       set({ isSaving: false });
@@ -210,8 +249,6 @@ export const useFileStore = create<FileState>()((set, get) => ({
   discardEdits: () => {
     set({ editContent: null, previewMode: 'preview' });
   },
-
-  setRootPath: (path: string) => set({ rootPath: path }),
 
   fetchRecentProjects: async () => {
     set({ isLoadingProjects: true });
@@ -226,7 +263,6 @@ export const useFileStore = create<FileState>()((set, get) => ({
   reloadContent: async () => {
     const path = get().selectedFile;
     if (!path) return;
-    // Don't reload while user is editing
     if (get().editContent !== null) return;
     try {
       const ext = path.split('.').pop()?.toLowerCase() || '';
@@ -265,8 +301,6 @@ export const useFileStore = create<FileState>()((set, get) => ({
 
   clearChangedFiles: () => set({ changedFiles: new Map() }),
 
-  // --- Unsaved changes dialog actions ---
-
   confirmDiscard: () => {
     const pending = get().pendingNavigation;
     set({ editContent: null, showUnsavedDialog: false, pendingNavigation: null });
@@ -284,13 +318,11 @@ export const useFileStore = create<FileState>()((set, get) => ({
     set({ pendingNavigation: null, showUnsavedDialog: false });
   },
 
-  // --- New file/folder actions ---
-
   createFile: async (parentDir: string, name: string) => {
     const path = `${parentDir}/${name}`;
     try {
       await bridge.writeFileContent(path, '');
-      await get().refreshTree();
+      await get().refreshDir(parentDir);
       get().selectFile(path);
     } catch {
       // Silently fail
@@ -298,16 +330,13 @@ export const useFileStore = create<FileState>()((set, get) => ({
   },
 
   createFolder: async (parentDir: string, name: string) => {
-    const path = `${parentDir}/${name}`;
     try {
-      await bridge.createDirectory(path);
-      await get().refreshTree();
+      await bridge.createDirectory(`${parentDir}/${name}`);
+      await get().refreshDir(parentDir);
     } catch {
       // Silently fail
     }
   },
-
-  // --- External drag state ---
 
   setDragOverTree: (v: boolean) => set({ isDragOverTree: v }),
 }));
