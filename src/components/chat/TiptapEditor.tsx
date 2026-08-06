@@ -32,6 +32,8 @@ export interface TiptapEditorHandle {
   focus(): void;
   /** Insert a file chip at the current cursor position */
   insertFileChip(attrs: FileChipAttrs): void;
+  /** Insert plain text at the current cursor position */
+  insertTextAtCursor(text: string): void;
   /** Whether the editor has no content */
   isEmpty(): boolean;
   /** Whether an IME composition is in progress */
@@ -226,6 +228,11 @@ export const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(
           })
           .insertContent(' ')  // space after chip for typing
           .run();
+      },
+      insertTextAtCursor(text: string) {
+        if (!editor) return;
+        editor.commands.focus();
+        editor.chain().insertContent(text).run();
       },
       isEmpty() {
         return editor?.isEmpty ?? true;

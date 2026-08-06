@@ -383,6 +383,11 @@ export const bridge = {
   getHomeDir: () =>
     invoke<string>('get_home_dir'),
 
+  /** Read absolute file paths from the system clipboard.
+   *  Windows CF_HDROP (files copied from Explorer); empty elsewhere. */
+  readClipboardFilePaths: () =>
+    invoke<string[]>('read_clipboard_file_paths'),
+
   exportSessionMarkdown: (path: string, outputPath: string, conversationOnly = false) =>
     invoke<void>('export_session_markdown', { path, outputPath, conversationOnly }),
 

@@ -274,8 +274,9 @@ export function useFileAttachments() {
           }
         } else {
           // Split: images → file attachments (with preview), non-images → inline chips.
-          // This ensures images show as visual thumbnails in FileUploadChips and
-          // their paths are properly included in the message sent to CLI (#70).
+          // If pasteFileAsPath + pasteImagesAsPath are both ON, images also become paths.
+          const pasteFileAsPath = useSettingsStore.getState().pasteFileAsPath;
+          const pasteImagesAsPath = useSettingsStore.getState().pasteImagesAsPath;
           const imagePaths: string[] = [];
           const otherPaths: string[] = [];
           for (const p of paths) {
@@ -287,12 +288,16 @@ export function useFileAttachments() {
             }
           }
 
-          // Images → attachment system (addFilePaths generates thumbnails)
-          if (imagePaths.length > 0) {
+          // Images: either attach or insert as paths (based on settings)
+          if (pasteFileAsPath && pasteImagesAsPath) {
+            for (const p of imagePaths) {
+              window.dispatchEvent(new CustomEvent('tokenicode:tree-file-inline', { detail: p }));
+            }
+          } else if (imagePaths.length > 0) {
             addFilePaths(imagePaths);
           }
 
-          // Non-images → inline file chips
+          // Non-images → inline file chips (or paths if pasteFileAsPath is ON, handled by listener)
           for (const p of otherPaths) {
             window.dispatchEvent(new CustomEvent('tokenicode:tree-file-inline', { detail: p }));
           }

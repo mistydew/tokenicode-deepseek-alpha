@@ -168,6 +168,10 @@ export function GeneralTab() {
   const toggleCtrlClickOpenExternally = useSettingsStore((s) => s.toggleCtrlClickOpenExternally);
   const showImageThumbnails = useSettingsStore((s) => s.showImageThumbnails);
   const toggleShowImageThumbnails = useSettingsStore((s) => s.toggleShowImageThumbnails);
+  const pasteFileAsPath = useSettingsStore((s) => s.pasteFileAsPath);
+  const togglePasteFileAsPath = useSettingsStore((s) => s.togglePasteFileAsPath);
+  const pasteImagesAsPath = useSettingsStore((s) => s.pasteImagesAsPath);
+  const togglePasteImagesAsPath = useSettingsStore((s) => s.togglePasteImagesAsPath);
   const aiAvatarUrl = useSettingsStore((s) => s.aiAvatarUrl);
   const setAiAvatarUrl = useSettingsStore((s) => s.setAiAvatarUrl);
   const userAvatarUrl = useSettingsStore((s) => s.userAvatarUrl);
@@ -606,6 +610,48 @@ export function GeneralTab() {
           </button>
           <p className="mt-1 text-[11px] text-text-tertiary leading-relaxed">
             {t('settings.showImageThumbnailsHint')}
+          </p>
+        </div>
+
+        {/* Paste files as paths */}
+        <div>
+          <button
+            onClick={togglePasteFileAsPath}
+            className="inline-flex items-center gap-2 text-[12px] text-text-secondary
+              hover:text-text-primary transition-smooth"
+          >
+            <span className={`relative w-8 h-4 rounded-full transition-smooth border
+              ${pasteFileAsPath ? 'bg-accent/80 border-accent/30' : 'bg-bg-tertiary border-border-subtle'}`}
+            >
+              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-all
+                ${pasteFileAsPath ? 'right-0.5' : 'left-0.5'}`}
+              />
+            </span>
+            {t('settings.pasteFileAsPath')}
+          </button>
+          <p className="mt-1 text-[11px] text-text-tertiary leading-relaxed">
+            {t('settings.pasteFileAsPathHint')}
+          </p>
+        </div>
+
+        {/* Paste images as paths — only usable when pasteFileAsPath is ON */}
+        <div className={`${pasteFileAsPath ? '' : 'opacity-40 pointer-events-none'}`}>
+          <button
+            onClick={togglePasteImagesAsPath}
+            className="inline-flex items-center gap-2 text-[12px] text-text-secondary
+              hover:text-text-primary transition-smooth"
+          >
+            <span className={`relative w-8 h-4 rounded-full transition-smooth border
+              ${pasteImagesAsPath ? 'bg-accent/80 border-accent/30' : 'bg-bg-tertiary border-border-subtle'}`}
+            >
+              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-all
+                ${pasteImagesAsPath ? 'right-0.5' : 'left-0.5'}`}
+              />
+            </span>
+            {t('settings.pasteImagesAsPath')}
+          </button>
+          <p className="mt-1 text-[11px] text-text-tertiary leading-relaxed">
+            {t('settings.pasteImagesAsPathHint')}
           </p>
         </div>
       </div>

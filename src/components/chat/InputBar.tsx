@@ -169,6 +169,18 @@ function PlanToggleButton() {
    is the proper plan approval UI. The fallback bar was too broad: it appeared on
    every completed session in plan/bypass mode, even without a real plan. */
 
+/** Convert absolute file paths to quoted space-separated relative paths for chat insertion.
+ *  Normalises backslashes to forward slashes. If cwd is set, paths under cwd become relative. */
+function formatFilePathsForInsert(paths: string[], cwd?: string | null): string {
+  return paths.map((p) => {
+    let display = p.replace(/\\/g, '/');
+    if (cwd && p.startsWith(cwd)) {
+      display = p.slice(cwd.length).replace(/^[\\/]/, '').replace(/\\/g, '/');
+    }
+    return `"${display}"`;
+  }).join(' ') + ' ';
+}
+
 export function InputBar() {
   const t = useT();
   const selectedSessionId = useSessionStore((s) => s.selectedSessionId);
@@ -298,20 +310,25 @@ export function InputBar() {
     prevAttachmentsRef.current = pendingAttachments;
   }, [pendingAttachments, setFiles]); // intentionally exclude `files` to avoid loop
 
-  // Inline file insertion: drop or drag → insert a file chip at cursor
+  // Inline file insertion: drop or drag → insert quoted path text (or FileChip if setting off)
   useEffect(() => {
     const onTreeFileInline = (e: Event) => {
       const fullPath = (e as CustomEvent<string>).detail;
       if (!fullPath || !textareaRef.current) return;
 
-      // Convert to path relative to working directory for readability
       const cwd = useSettingsStore.getState().workingDirectory;
-      let displayPath = fullPath;
-      if (cwd && fullPath.startsWith(cwd)) {
-        displayPath = fullPath.slice(cwd.length).replace(/^[\\/]/, '');
+      const pasteFileAsPath = useSettingsStore.getState().pasteFileAsPath;
+      if (pasteFileAsPath) {
+        const formatted = formatFilePathsForInsert([fullPath], cwd);
+        textareaRef.current.insertTextAtCursor(formatted);
+      } else {
+        // Original behaviour: insert a FileChip
+        let displayPath = fullPath;
+        if (cwd && fullPath.startsWith(cwd)) {
+          displayPath = fullPath.slice(cwd.length).replace(/^[\\/]/, '');
+        }
+        textareaRef.current.insertFileChip({ fullPath, label: displayPath });
       }
-
-      textareaRef.current.insertFileChip({ fullPath, label: displayPath });
     };
     window.addEventListener('tokenicode:tree-file-inline', onTreeFileInline);
     return () => window.removeEventListener('tokenicode:tree-file-inline', onTreeFileInline);
@@ -1443,14 +1460,116 @@ export function InputBar() {
     }
   }, [addFiles]);
 
+  /** Extract absolute file paths from clipboard paste event.
+   *  Tries text/uri-list first, then text/plain (Windows), then File.path. */
+  const extractFilePathsFromClipboard = useCallback((e: ClipboardEvent): string[] | null => {
+    // Method 1: text/uri-list (macOS Finder, some environments)
+    try {
+      const uriList = e.clipboardData?.getData('text/uri-list');
+      if (uriList) {
+        const paths = uriList
+          .split('\n')
+          .filter(Boolean)
+          .map((uri) => {
+            let p = uri.replace(/^file:\/\/\/?/i, '');
+            try { return decodeURI(p); } catch { return p; }
+          })
+          .filter((p) => p.length > 0);
+        if (paths.length > 0) return paths;
+      }
+    } catch { /* clipboard API may throw */ }
+
+    // Method 2: text/plain — Windows may put file paths as plain text
+    try {
+      const plainText = e.clipboardData?.getData('text/plain');
+      if (plainText) {
+        const lines = plainText.split(/[\r\n]+/).filter(Boolean);
+        // Only treat as file paths if every line looks like a valid absolute path
+        const allPaths = lines.every((l) => /^[A-Za-z]:[/\\]|^\//.test(l.trim()));
+        if (allPaths && lines.length > 0) return lines.map((l) => l.trim());
+      }
+    } catch { /* clipboard API may throw */ }
+
+    // Method 3: File.path property (Chromium/WebView2 extension)
+    const files = e.clipboardData?.files;
+    if (files && files.length > 0) {
+      const paths: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i] as any;
+        if (f.path && typeof f.path === 'string') paths.push(f.path);
+      }
+      if (paths.length > 0) return paths;
+    }
+
+    return null;
+  }, []);
+
+  /** Insert quoted paths at the cursor (used by paste + drag paths) */
+  const insertPaths = useCallback((paths: string[]) => {
+    if (!textareaRef.current || paths.length === 0) return;
+    const cwd = useSettingsStore.getState().workingDirectory;
+    const formatted = formatFilePathsForInsert(paths, cwd);
+    textareaRef.current.insertTextAtCursor(formatted);
+  }, []);
+
   const handlePaste = useCallback((e: ClipboardEvent) => {
-    const items = (e as any).clipboardData?.files as FileList | undefined;
-    if (items && items.length > 0) {
+    const clipboard = e.clipboardData;
+    const pasteFileAsPath = useSettingsStore.getState().pasteFileAsPath;
+
+    if (!pasteFileAsPath) {
+      // Setting OFF: original attachment behaviour (only when files are exposed)
+      const items = clipboard?.files;
+      if (items && items.length > 0) {
+        e.preventDefault();
+        addFiles(items);
+        return true;
+      }
+      return false;
+    }
+
+    // Setting ON: try to extract file paths from the clipboard → insert as text.
+    // On Windows WebView2, paste events expose NO clipboardData.files (unlike
+    // drag events), so JS extraction alone is not enough — the native
+    // CF_HDROP reader below is the fallback.
+    const paths = extractFilePathsFromClipboard(e);
+    if (paths && paths.length > 0) {
       e.preventDefault();
-      addFiles(items);
+      insertPaths(paths);
       return true;
     }
-  }, [addFiles]);
+
+    // Synchronous file signals exist but extraction failed — block the default
+    // paste (which would insert the bare file name) and read paths natively.
+    const hasFileSignal =
+      !!clipboard?.files?.length ||
+      !!clipboard?.types?.includes?.('Files') ||
+      !!clipboard?.getData?.('text/uri-list');
+    if (hasFileSignal) {
+      e.preventDefault();
+      bridge.readClipboardFilePaths().then((nativePaths) => {
+        if (nativePaths.length > 0) insertPaths(nativePaths);
+        // If paths unavailable, silently do nothing (don't paste file content)
+      });
+      return true;
+    }
+
+    // No file signal — likely a plain text paste. Let the default paste proceed
+    // (text keeps working), and check the native clipboard asynchronously: if
+    // it turns out to be a file clipboard (Windows Explorer copy), restore the
+    // pre-paste snapshot and insert the paths instead of the file name text.
+    const editor = textareaRef.current?.getEditor?.();
+    const snapshot = editor?.getHTML() ?? null;
+    bridge.readClipboardFilePaths().then((nativePaths) => {
+      if (nativePaths.length === 0) return;
+      const ed = textareaRef.current?.getEditor?.();
+      if (!ed) return;
+      if (snapshot !== null && ed.getHTML() !== snapshot) {
+        ed.commands.setContent(snapshot, { emitUpdate: false });
+      }
+      insertPaths(nativePaths);
+    });
+    return false;
+  }, [addFiles, extractFilePathsFromClipboard, insertPaths]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -1465,9 +1584,20 @@ export function InputBar() {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    // Internal file tree drag uses mouse events (not HTML5 drag), so won't reach here.
-    // OS file drops are handled by Tauri onDragDropEvent in useFileAttachments.
-  }, []);
+    const pasteFileAsPath = useSettingsStore.getState().pasteFileAsPath;
+    if (!pasteFileAsPath) return; // Setting OFF: do nothing (Tauri native handler takes over)
+
+    // Insert file paths from HTML5 drop (browser-level drag events).
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles && droppedFiles.length > 0) {
+      const paths: string[] = [];
+      for (let i = 0; i < droppedFiles.length; i++) {
+        const f = droppedFiles[i] as any;
+        if (f.path && typeof f.path === 'string') paths.push(f.path);
+      }
+      if (paths.length > 0) insertPaths(paths);
+    }
+  }, [insertPaths]);
 
   return (
     <div className="p-4 relative">
