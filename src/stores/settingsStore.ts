@@ -118,6 +118,10 @@ interface SettingsState {
   showImageThumbnails: boolean;
   /** Extra user-selected roots containing Claude-compatible skills. */
   skillDirectories: string[];
+  /** Whether pasting files inserts quoted absolute paths instead of attaching */
+  pasteFileAsPath: boolean;
+  /** When pasteFileAsPath is on, also insert image paths instead of attaching */
+  pasteImagesAsPath: boolean;
 
   // ── Custom background (user-uploaded image) ──
   /** Base64 data URL of user-uploaded custom background image, empty = disabled */
@@ -173,6 +177,8 @@ interface SettingsState {
   toggleShowImageThumbnails: () => void;
   addSkillDirectory: (path: string) => void;
   removeSkillDirectory: (path: string) => void;
+  togglePasteFileAsPath: () => void;
+  togglePasteImagesAsPath: () => void;
   setCustomBgImage: (image: string) => void;
   setCustomBgSize: (size: 'cover' | 'contain' | 'fill') => void;
   setCustomBgPositionX: (x: number) => void;
@@ -231,6 +237,8 @@ export const useSettingsStore = create<SettingsState>()(
       ctrlClickOpenExternally: false,
       showImageThumbnails: false,
       skillDirectories: [],
+      pasteFileAsPath: false,
+      pasteImagesAsPath: false,
       customBgImage: '',
       customBgSize: 'cover',
       customBgPositionX: 50,
@@ -372,6 +380,10 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       removeSkillDirectory: (path) =>
         set((state) => ({ skillDirectories: state.skillDirectories.filter((item) => item !== path) })),
+      togglePasteFileAsPath: () =>
+        set((state) => ({ pasteFileAsPath: !state.pasteFileAsPath })),
+      togglePasteImagesAsPath: () =>
+        set((state) => ({ pasteImagesAsPath: !state.pasteImagesAsPath })),
     }),
     {
       name: 'tokenicode-settings',
@@ -454,6 +466,8 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (version < 15) {
           persisted.skillDirectories = [];
+          persisted.pasteFileAsPath = false;
+          persisted.pasteImagesAsPath = false;
         }
         return persisted;
       },
@@ -486,6 +500,8 @@ export const useSettingsStore = create<SettingsState>()(
         ctrlClickOpenExternally: state.ctrlClickOpenExternally,
         showImageThumbnails: state.showImageThumbnails,
         skillDirectories: state.skillDirectories,
+        pasteFileAsPath: state.pasteFileAsPath,
+        pasteImagesAsPath: state.pasteImagesAsPath,
         customBgImage: state.customBgImage,
         customBgSize: state.customBgSize,
         customBgPositionX: state.customBgPositionX,

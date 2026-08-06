@@ -3786,6 +3786,58 @@ async fn export_session_json(path: String, output_path: String) -> Result<(), St
     Ok(())
 }
 
+/// Get the user's home directory path
+#[tauri::command]
+fn get_home_dir() -> Result<String, String> {
+    dirs::home_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .ok_or_else(|| "Cannot find home directory".to_string())
+}
+
+/// Read absolute file paths from the system clipboard.
+///
+/// On Windows this reads the CF_HDROP clipboard format (files copied from
+/// Explorer), which WebView2 does not expose via `clipboardData.files` on
+/// paste events. Other platforms return empty — the JS-side extraction
+/// (text/uri-list / File.path) covers macOS and Linux.
+#[cfg(target_os = "windows")]
+#[tauri::command]
+fn read_clipboard_file_paths() -> Vec<String> {
+    use windows_sys::Win32::System::DataExchange::{CloseClipboard, GetClipboardData, OpenClipboard};
+    use windows_sys::Win32::System::Ole::CF_HDROP;
+    use windows_sys::Win32::UI::Shell::DragQueryFileW;
+
+    let mut paths: Vec<String> = Vec::new();
+    unsafe {
+        // OpenClipboard must be called on a thread with an open message loop —
+        // Tauri command threads satisfy this (each command runs on the main loop).
+        if OpenClipboard(std::ptr::null_mut()) == 0 {
+            return paths;
+        }
+        let hdrop = GetClipboardData(CF_HDROP as u32);
+        if !hdrop.is_null() {
+            // Query file count first (u32::MAX = DragQueryFileW's count request)
+            let count = DragQueryFileW(hdrop, u32::MAX, std::ptr::null_mut(), 0);
+            for i in 0..count {
+                let len = DragQueryFileW(hdrop, i, std::ptr::null_mut(), 0);
+                if len > 0 {
+                    let mut buf = vec![0u16; (len + 1) as usize];
+                    DragQueryFileW(hdrop, i, buf.as_mut_ptr(), (len + 1) as u32);
+                    paths.push(String::from_utf16_lossy(&buf[..len as usize]));
+                }
+            }
+        }
+        CloseClipboard();
+    }
+    paths
+}
+
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+fn read_clipboard_file_paths() -> Vec<String> {
+    Vec::new()
+}
+
 /// List recent projects by scanning ~/.claude/projects/ directory names
 #[tauri::command]
 async fn list_recent_projects() -> Result<Vec<Value>, String> {
@@ -8212,6 +8264,8 @@ pub fn run() {
             export_session_markdown,
             export_session_json,
             list_recent_projects,
+            get_home_dir,
+            read_clipboard_file_paths,
             watch_directory,
             unwatch_directory,
             save_temp_file,

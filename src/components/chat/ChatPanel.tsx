@@ -649,6 +649,40 @@ export function ChatPanel() {
     }
   }, [messages, partialText, partialThinking]);
 
+  // Force scroll to bottom when streaming ends. The streamed block is removed
+  // and the final assistant message is committed in SEPARATE Zustand updates
+  // (each setState re-renders synchronously), so on the isStreaming flip the
+  // message list is still missing the final answer — scrolling immediately
+  // pins the viewport to the last user question once the answer is appended.
+  // Defer to rAF so the scroll happens after the commit render lands and
+  // scrollHeight reflects the final message. Dependencies MUST stay [isStreaming]
+  // only: the commit render would re-run this effect and its cleanup would
+  // cancelAnimationFrame the pending scroll before it ever fires.
+  const wasStreamingRef = useRef(false);
+  useEffect(() => {
+    if (isStreaming) {
+      wasStreamingRef.current = true;
+      return;
+    }
+    if (!wasStreamingRef.current) return;
+    wasStreamingRef.current = false;
+    const raf = requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+      // Extremely defensive: if content is still growing (message commit
+      // landed after this frame), retry once on the next frame.
+      if (el.scrollHeight - el.scrollTop - el.clientHeight > 2) {
+        requestAnimationFrame(() => {
+          if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        });
+      }
+      userScrollingUpRef.current = false;
+      isNearBottomRef.current = true;
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [isStreaming]);
+
   useEffect(() => {
     updateActiveTurnFromScroll();
   }, [turns.length, messages.length, updateActiveTurnFromScroll]);
