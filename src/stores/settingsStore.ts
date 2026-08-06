@@ -2,10 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
   DEEPSEEK_V4_FLASH,
-  DEEPSEEK_V4_FLASH_LABEL,
   DEEPSEEK_V4_PRO,
-  DEEPSEEK_V4_PRO_LABEL,
-  normalizeDeepSeekModelName,
+  normalizeProviderModelName,
 } from '../lib/deepseek-models';
 
 // --- Types ---
@@ -45,17 +43,19 @@ function clampAutoCompactThreshold(tokens: number): number {
 // --- Model options (display mapping) ---
 
 export const MODEL_OPTIONS: { id: ModelId; label: string; short: string }[] = [
-  { id: 'claude-opus-4-6', label: DEEPSEEK_V4_PRO_LABEL, short: DEEPSEEK_V4_PRO_LABEL },
-  { id: 'claude-sonnet-4-6', label: DEEPSEEK_V4_FLASH_LABEL, short: DEEPSEEK_V4_FLASH_LABEL },
+  { id: 'claude-opus-4-6', label: 'Claude Opus 4.6', short: 'Opus 4.6' },
+  { id: 'claude-opus-4-6-1m', label: 'Claude Opus 4.6 (1M)', short: 'Opus 4.6 1M' },
+  { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', short: 'Sonnet 4.6' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', short: 'Haiku 4.5' },
 ];
 
 function migrateModelSelection(model: unknown): ModelId | undefined {
   if (typeof model !== 'string') return undefined;
-  const normalized = normalizeDeepSeekModelName(model);
+  const normalized = normalizeProviderModelName(model);
   if (normalized === DEEPSEEK_V4_PRO) return 'claude-opus-4-6';
   if (normalized === DEEPSEEK_V4_FLASH) return 'claude-sonnet-4-6';
-  if (model === 'claude-opus-4-6-1m') return 'claude-opus-4-6';
-  if (model === 'claude-haiku-4-5-20251001' || model === 'claude-haiku-4-5') return 'claude-sonnet-4-6';
+  if (MODEL_OPTIONS.some((option) => option.id === model)) return model as ModelId;
+  if (model === 'claude-haiku-4-5') return 'claude-haiku-4-5-20251001';
   return undefined;
 }
 
@@ -116,6 +116,8 @@ interface SettingsState {
   ctrlClickOpenExternally: boolean;
   /** Whether to show image thumbnail previews in chat for images < 50MB */
   showImageThumbnails: boolean;
+  /** Extra user-selected roots containing Claude-compatible skills. */
+  skillDirectories: string[];
 
   // ── Custom background (user-uploaded image) ──
   /** Base64 data URL of user-uploaded custom background image, empty = disabled */
@@ -169,6 +171,8 @@ interface SettingsState {
   toggleCtrlEnterToSend: () => void;
   toggleCtrlClickOpenExternally: () => void;
   toggleShowImageThumbnails: () => void;
+  addSkillDirectory: (path: string) => void;
+  removeSkillDirectory: (path: string) => void;
   setCustomBgImage: (image: string) => void;
   setCustomBgSize: (size: 'cover' | 'contain' | 'fill') => void;
   setCustomBgPositionX: (x: number) => void;
@@ -226,6 +230,7 @@ export const useSettingsStore = create<SettingsState>()(
       ctrlEnterToSend: false,
       ctrlClickOpenExternally: false,
       showImageThumbnails: false,
+      skillDirectories: [],
       customBgImage: '',
       customBgSize: 'cover',
       customBgPositionX: 50,
@@ -359,10 +364,18 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({ ctrlClickOpenExternally: !state.ctrlClickOpenExternally })),
       toggleShowImageThumbnails: () =>
         set((state) => ({ showImageThumbnails: !state.showImageThumbnails })),
+      addSkillDirectory: (path) =>
+        set((state) => {
+          const normalized = path.trim().replace(/[\\/]+$/, '');
+          if (!normalized || state.skillDirectories.includes(normalized)) return state;
+          return { skillDirectories: [...state.skillDirectories, normalized] };
+        }),
+      removeSkillDirectory: (path) =>
+        set((state) => ({ skillDirectories: state.skillDirectories.filter((item) => item !== path) })),
     }),
     {
       name: 'tokenicode-settings',
-      version: 14,
+      version: 15,
       migrate: (persistedState: unknown, version: number) => {
         const persisted = persistedState as Record<string, unknown>;
         if (version === 0) {
@@ -439,6 +452,9 @@ export const useSettingsStore = create<SettingsState>()(
           persisted.ctrlClickOpenExternally = false;
           persisted.showImageThumbnails = false;
         }
+        if (version < 15) {
+          persisted.skillDirectories = [];
+        }
         return persisted;
       },
       partialize: (state) => ({
@@ -469,6 +485,7 @@ export const useSettingsStore = create<SettingsState>()(
         ctrlEnterToSend: state.ctrlEnterToSend,
         ctrlClickOpenExternally: state.ctrlClickOpenExternally,
         showImageThumbnails: state.showImageThumbnails,
+        skillDirectories: state.skillDirectories,
         customBgImage: state.customBgImage,
         customBgSize: state.customBgSize,
         customBgPositionX: state.customBgPositionX,

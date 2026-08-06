@@ -17,6 +17,7 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { bridge } from '../lib/tauri-bridge';
 import { parseTurns, type Turn } from '../lib/turns';
 import { t } from '../lib/i18n';
+import { showToast } from '../components/shared/Toast';
 
 export type RewindAction = 'restore_all' | 'restore_conversation' | 'restore_code' | 'summarize';
 
@@ -71,14 +72,18 @@ export function useRewind() {
     }
   }, []);
 
-  /** Reset session state after rewind.
-   *  Clears both stdinId (process link) AND sessionId (CLI UUID) so the next
-   *  message starts a fresh session instead of --resume'ing the old context. */
+  /** Reset session state after rewind. The old CLI ID is retained only as a
+   * replacement marker so it can be hidden after the new branch is created. */
   const resetSession = useCallback(() => {
     const tid = useSessionStore.getState().selectedSessionId;
     if (!tid) return;
+    const previousSessionId = useChatStore.getState().getTab(tid)?.sessionMeta.sessionId;
     useChatStore.getState().setSessionStatus(tid, 'idle');
-    useChatStore.getState().setSessionMeta(tid, { stdinId: undefined, sessionId: undefined });
+    useChatStore.getState().setSessionMeta(tid, {
+      stdinId: undefined,
+      sessionId: undefined,
+      rewoundFromSessionId: previousSessionId,
+    });
   }, []);
 
   /** Save rewound state to tab cache */
@@ -134,15 +139,7 @@ export function useRewind() {
           const successMsg = fileRestoreOk
             ? t('rewind.successAll').replace('{n}', String(turn.index))
             : t('rewind.successAllNoFiles').replace('{n}', String(turn.index));
-          useChatStore.getState().addMessage(tid, {
-            id: generateMessageId(),
-            role: 'system',
-            type: 'text',
-            content: successMsg,
-            commandType: 'action',
-            commandData: { action: 'rewind', turnIndex: turn.index, mode: 'restore_all' },
-            timestamp: Date.now(),
-          });
+          showToast(successMsg, fileRestoreOk ? 'success' : 'info');
           break;
         }
 
@@ -152,15 +149,7 @@ export function useRewind() {
           resetSession();
           useChatStore.getState().setInputDraft(tid, originalUserText);
 
-          useChatStore.getState().addMessage(tid, {
-            id: generateMessageId(),
-            role: 'system',
-            type: 'text',
-            content: t('rewind.success').replace('{n}', String(turn.index)),
-            commandType: 'action',
-            commandData: { action: 'rewind', turnIndex: turn.index, mode: 'restore_conversation' },
-            timestamp: Date.now(),
-          });
+          showToast(t('rewind.success').replace('{n}', String(turn.index)), 'success');
           break;
         }
 
@@ -172,15 +161,7 @@ export function useRewind() {
           const codeMsg = fileRestoreOk
             ? t('rewind.successCode').replace('{n}', String(turn.index))
             : t('rewind.codeRestoreFailed');
-          useChatStore.getState().addMessage(tid, {
-            id: generateMessageId(),
-            role: 'system',
-            type: 'text',
-            content: codeMsg,
-            commandType: 'action',
-            commandData: { action: 'rewind', turnIndex: turn.index, mode: 'restore_code' },
-            timestamp: Date.now(),
-          });
+          showToast(codeMsg, fileRestoreOk ? 'success' : 'error');
           break;
         }
 

@@ -1,10 +1,10 @@
 {
   "name": "tokenicode-deepseek-alpha",
   "private": true,
-  "version": "1.0.6",
+  "version": "1.0.8",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 127.0.0.1",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"

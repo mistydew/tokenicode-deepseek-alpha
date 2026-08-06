@@ -505,7 +505,7 @@ export function GeneralTab() {
           </div>
           <p className="mt-2 text-xs text-text-tertiary leading-relaxed">
             当前声明：{contextWindow.toLocaleString()} tokens；自动 compact 阈值：{compactThreshold.toLocaleString()} tokens。
-            如果你的 CC Switch / DeepSeek 路由实际支持 1M，请选择“声明 1M”。
+            如果当前供应商路由实际支持 1M，请选择“声明 1M”。
           </p>
         </div>
 

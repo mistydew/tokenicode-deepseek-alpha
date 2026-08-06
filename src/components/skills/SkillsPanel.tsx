@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { open } from '@tauri-apps/plugin-dialog';
 import { useSkillStore } from '../../stores/skillStore';
 import { useFileStore } from '../../stores/fileStore';
 import { useCommandStore } from '../../stores/commandStore';
@@ -17,7 +18,7 @@ const DEFAULT_TRANSLATION_CONFIG: SkillTranslationConfig = {
   baseUrl: '',
   apiFormat: 'anthropic',
   apiKey: '',
-  model: 'deepseek-v4-flash',
+  model: 'claude-sonnet-4-6',
   proxyUrl: '',
 };
 
@@ -40,21 +41,13 @@ function saveTranslationCache(translations: TranslationMap) {
   }
 }
 
-function loadTranslationConfig(): SkillTranslationConfig {
+function takeLegacyTranslationConfig(): SkillTranslationConfig | null {
   try {
     const raw = localStorage.getItem(TRANSLATION_CONFIG_KEY);
-    if (!raw) return DEFAULT_TRANSLATION_CONFIG;
+    if (!raw) return null;
     return { ...DEFAULT_TRANSLATION_CONFIG, ...JSON.parse(raw) };
   } catch {
-    return DEFAULT_TRANSLATION_CONFIG;
-  }
-}
-
-function saveTranslationConfig(config: SkillTranslationConfig) {
-  try {
-    localStorage.setItem(TRANSLATION_CONFIG_KEY, JSON.stringify(config));
-  } catch {
-    // Config persistence is best-effort.
+    return null;
   }
 }
 
@@ -66,6 +59,9 @@ export function SkillsPanel() {
   const deleteSkill = useSkillStore((s) => s.deleteSkill);
   const toggleEnabled = useSkillStore((s) => s.toggleEnabled);
   const workingDirectory = useSettingsStore((s) => s.workingDirectory);
+  const skillDirectories = useSettingsStore((s) => s.skillDirectories);
+  const addSkillDirectory = useSettingsStore((s) => s.addSkillDirectory);
+  const removeSkillDirectory = useSettingsStore((s) => s.removeSkillDirectory);
   const selectFile = useFileStore((s) => s.selectFile);
   const selectedFile = useFileStore((s) => s.selectedFile);
 
@@ -75,8 +71,25 @@ export function SkillsPanel() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [translationConfigOpen, setTranslationConfigOpen] = useState(false);
-  const [translationConfig, setTranslationConfig] = useState<SkillTranslationConfig>(() => loadTranslationConfig());
+  const [translationConfig, setTranslationConfig] = useState<SkillTranslationConfig>(DEFAULT_TRANSLATION_CONFIG);
+  const translationSaveRef = useRef<Promise<void>>(Promise.resolve());
   const searchRef = useRef<HTMLInputElement>(null);
+
+  const handleAddSkillDirectory = useCallback(async () => {
+    const selected = await open({ directory: true, multiple: true, title: t('skills.addDirectory') });
+    const paths = typeof selected === 'string' ? [selected] : selected || [];
+    for (const path of paths) addSkillDirectory(path);
+    if (paths.length > 0) {
+      await fetchSkills(workingDirectory || undefined);
+      await useCommandStore.getState().fetchCommands(workingDirectory || undefined);
+    }
+  }, [addSkillDirectory, fetchSkills, t, workingDirectory]);
+
+  const handleRemoveSkillDirectory = useCallback(async (path: string) => {
+    removeSkillDirectory(path);
+    await fetchSkills(workingDirectory || undefined);
+    await useCommandStore.getState().fetchCommands(workingDirectory || undefined);
+  }, [fetchSkills, removeSkillDirectory, workingDirectory]);
 
   // Context menu (triggered by "..." button)
   const [contextMenu, setContextMenu] = useState<{
@@ -90,6 +103,25 @@ export function SkillsPanel() {
   useEffect(() => {
     fetchSkills(workingDirectory || undefined);
   }, [workingDirectory, fetchSkills]);
+
+  // Migrate the old plaintext localStorage config once, then use the encrypted
+  // backend for all future reads and writes.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const legacy = takeLegacyTranslationConfig();
+      if (legacy) {
+        if (!cancelled) setTranslationConfig(legacy);
+        await bridge.saveSkillTranslationConfig(legacy);
+        localStorage.removeItem(TRANSLATION_CONFIG_KEY);
+        return;
+      }
+      const saved = await bridge.loadSkillTranslationConfig();
+      if (!cancelled && saved) setTranslationConfig({ ...DEFAULT_TRANSLATION_CONFIG, ...saved });
+    };
+    load().catch((error) => console.error('Failed to load encrypted skill translation config:', error));
+    return () => { cancelled = true; };
+  }, []);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -162,7 +194,7 @@ export function SkillsPanel() {
 
   const handleUseInInput = useCallback((skill: SkillInfo) => {
     setContextMenu(null);
-    useCommandStore.getState().setActivePrefix({
+    useCommandStore.getState().addPrefix({
       name: `/${skill.name}`,
       description: skill.description,
       source: skill.scope,
@@ -259,7 +291,9 @@ export function SkillsPanel() {
   const updateTranslationConfig = useCallback((patch: Partial<SkillTranslationConfig>) => {
     setTranslationConfig((current) => {
       const next = { ...current, ...patch };
-      saveTranslationConfig(next);
+      translationSaveRef.current = translationSaveRef.current
+        .then(() => bridge.saveSkillTranslationConfig(next))
+        .catch((error) => console.error('Failed to save encrypted skill translation config:', error));
       return next;
     });
   }, []);
@@ -286,6 +320,17 @@ export function SkillsPanel() {
           </span>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={handleAddSkillDirectory}
+            className="p-1.5 rounded-lg hover:bg-bg-secondary text-text-tertiary transition-smooth"
+            title={t('skills.addDirectory')}
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M2 4.5h4l1.2 1.5H14v7H2z" />
+              <path d="M8 8v4M6 10h4" />
+            </svg>
+          </button>
           <button
             onClick={handleToggleTranslations}
             disabled={isTranslating}
@@ -328,10 +373,23 @@ export function SkillsPanel() {
         </div>
       </div>
 
+      {skillDirectories.length > 0 && (
+        <div className="px-3 py-2 border-b border-border-subtle flex flex-wrap gap-1">
+          {skillDirectories.map((path) => (
+            <span key={path} title={path}
+              className="max-w-full inline-flex items-center gap-1 px-2 py-1 rounded-md bg-bg-secondary text-[10px] text-text-muted">
+              <span className="truncate">{path}</span>
+              <button onClick={() => handleRemoveSkillDirectory(path)}
+                className="text-text-tertiary hover:text-red-400" aria-label={t('skills.removeDirectory')}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {translationConfigOpen && (
         <div className="px-2 py-2 border-b border-border-subtle bg-bg-secondary/30">
           <div className="mb-2 text-[10px] text-text-tertiary leading-relaxed">
-            技能翻译 API 独立配置。DeepSeek/CC Switch 的接口地址填在 Base URL，Proxy URL 仅用于网络代理。
+            技能翻译 API 独立配置。填写所用供应商的 Base URL，Proxy URL 仅用于网络代理。
           </div>
           <div className="grid grid-cols-2 gap-1.5 mb-1.5">
             <button
@@ -360,13 +418,13 @@ export function SkillsPanel() {
             type="text"
             value={translationConfig.baseUrl}
             onChange={(e) => updateTranslationConfig({ baseUrl: e.target.value })}
-            placeholder="https://api.deepseek.com"
+            placeholder="https://api.anthropic.com"
             className="w-full mb-1.5 px-2 py-1.5 text-xs bg-bg-input
               border border-border-subtle rounded-lg text-text-primary
               placeholder:text-text-tertiary outline-none focus:border-border-focus"
           />
           <p className="mb-1.5 text-[10px] text-text-tertiary leading-relaxed">
-            DeepSeek 官网写法可直接填 https://api.deepseek.com；如果你的服务要求 /v1，也可以填完整 /v1 地址。
+            可填写供应商根地址；如果服务要求 /v1，也可以填写完整的 /v1 地址。
           </p>
           <label className="block mb-1 text-[10px] text-text-tertiary">API Key</label>
           <input
@@ -383,7 +441,7 @@ export function SkillsPanel() {
             type="text"
             value={translationConfig.model}
             onChange={(e) => updateTranslationConfig({ model: e.target.value })}
-            placeholder="Model, e.g. deepseek-v4-flash"
+            placeholder="Model, e.g. claude-sonnet-4-6"
             className="w-full mb-1.5 px-2 py-1.5 text-xs bg-bg-input
               border border-border-subtle rounded-lg text-text-primary
               placeholder:text-text-tertiary outline-none focus:border-border-focus"

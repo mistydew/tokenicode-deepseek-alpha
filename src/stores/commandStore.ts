@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { bridge, type UnifiedCommand } from '../lib/tauri-bridge';
+import { useSettingsStore } from './settingsStore';
 
 interface CommandState {
   // All available commands (built-in + custom)
@@ -7,23 +8,24 @@ interface CommandState {
   isLoading: boolean;
 
   // Prefix mode: when a custom command with $ARGUMENTS is selected
-  activePrefix: UnifiedCommand | null;
+  activePrefixes: UnifiedCommand[];
 
   // Actions
   fetchCommands: (cwd?: string) => Promise<void>;
-  setActivePrefix: (cmd: UnifiedCommand) => void;
-  clearPrefix: () => void;
+  addPrefix: (cmd: UnifiedCommand) => void;
+  removePrefix: (name: string) => void;
+  clearPrefixes: () => void;
 }
 
 export const useCommandStore = create<CommandState>()((set) => ({
   commands: [],
   isLoading: false,
-  activePrefix: null,
+  activePrefixes: [],
 
   fetchCommands: async (cwd?: string) => {
     set({ isLoading: true });
     try {
-      const commands = await bridge.listAllCommands(cwd);
+      const commands = await bridge.listAllCommands(cwd, useSettingsStore.getState().skillDirectories);
       set({ commands, isLoading: false });
     } catch (err) {
       console.error('[commandStore] fetchCommands failed:', err);
@@ -31,6 +33,13 @@ export const useCommandStore = create<CommandState>()((set) => ({
     }
   },
 
-  setActivePrefix: (cmd) => set({ activePrefix: cmd }),
-  clearPrefix: () => set({ activePrefix: null }),
+  addPrefix: (cmd) => set((state) => {
+    if (cmd.category !== 'skill') return { activePrefixes: [cmd] };
+    if (state.activePrefixes.some((item) => item.name === cmd.name)) return state;
+    return { activePrefixes: [...state.activePrefixes.filter((item) => item.category === 'skill'), cmd] };
+  }),
+  removePrefix: (name) => set((state) => ({
+    activePrefixes: state.activePrefixes.filter((item) => item.name !== name),
+  })),
+  clearPrefixes: () => set({ activePrefixes: [] }),
 }));

@@ -224,6 +224,40 @@ export function flushStreamBuffer(stdinId?: string) {
   }
 }
 
+/** Preserve streamed text when a provider omits the final full assistant event. */
+function commitPartialText(tabId: string, stdinId?: string): boolean {
+  flushStreamBuffer(stdinId);
+  const store = useChatStore.getState();
+  const tab = store.getTab(tabId);
+  const content = tab?.partialText?.trim();
+  if (!content) return false;
+
+  const alreadyPresent = tab?.messages.some(
+    (message) => message.role === 'assistant'
+      && message.type === 'text'
+      && message.content.trim() === content,
+  );
+  if (!alreadyPresent) {
+    store.addMessage(tabId, {
+      id: generateMessageId(),
+      role: 'assistant',
+      type: 'text',
+      content,
+      timestamp: Date.now(),
+    });
+  }
+  return true;
+}
+
+export function hasAssistantReplyForTurn(messages: ChatMessage[], turnStartTime: number): boolean {
+  return messages.some(
+    (message) => message.role === 'assistant'
+      && message.type === 'text'
+      && !!message.content.trim()
+      && message.timestamp >= turnStartTime,
+  );
+}
+
 // --- File tree auto-refresh on file-mutating tool completions ---
 // Tools that may create/modify/delete files in the working directory.
 const FILE_MUTATING_TOOLS = new Set([
@@ -636,6 +670,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
         break;
       }
       case 'result': {
+        commitPartialText(tabId, msg.__stdinId);
         store.setSessionStatus(tabId, msg.subtype === 'success' ? 'completed' : 'error');
         {
           const bgTab = store.getTab(tabId);
@@ -644,7 +679,6 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           const resultOutput = msg.usage?.output_tokens || 0;
           const streamedInput = prevMeta?.inputTokens || 0;
           const streamedOutput = prevMeta?.outputTokens || 0;
-          const snapshot = contextSnapshot(msg.usage);
           store.setSessionMeta(tabId, {
             cost: msg.total_cost_usd,
             duration: msg.duration_ms,
@@ -653,7 +687,6 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
             outputTokens: resultOutput,
             totalInputTokens: (prevMeta?.totalInputTokens || 0) + (resultInput - streamedInput),
             totalOutputTokens: (prevMeta?.totalOutputTokens || 0) + (resultOutput - streamedOutput),
-            ...(snapshot ? snapshot : {}),
             turnStartTime: undefined,
             lastProgressAt: undefined,
           });
@@ -750,8 +783,8 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
         break;
       }
       case 'process_exit': {
-        // Flush any remaining stream buffer before cleanup (#64)
-        flushStreamBuffer(msg.__stdinId);
+        // Preserve delta-only replies before status cleanup clears partialText.
+        commitPartialText(tabId, msg.__stdinId);
 
         // P0-5: Clean up Tauri event listeners for background tab.
         // __claudeUnlisteners is keyed by stdinId (desk_xxx), NOT tabId (session uuid).
@@ -1563,7 +1596,8 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           break;
         }
 
-        // Clear any remaining partial text before marking turn complete
+        // Preserve delta-only replies before clearing streaming state.
+        commitPartialText(tabId, msgStdinId);
         clearPartial();
 
         // --- TK-303: Auto-retry on thinking signature error after provider/model switch ---
@@ -1813,7 +1847,6 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           const resultOutput = msg.usage?.output_tokens || 0;
           const streamedInput = meta.inputTokens || 0;
           const streamedOutput = meta.outputTokens || 0;
-          const snapshot = contextSnapshot(msg.usage);
           setSessionMeta({
             cost: msg.total_cost_usd,
             duration: msg.duration_ms,
@@ -1822,7 +1855,6 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
             outputTokens: resultOutput,
             totalInputTokens: (meta.totalInputTokens || 0) + (resultInput - streamedInput),
             totalOutputTokens: (meta.totalOutputTokens || 0) + (resultOutput - streamedOutput),
-            ...(snapshot ? snapshot : {}),
             turnStartTime: undefined,
             lastProgressAt: undefined,
           });
@@ -1995,6 +2027,7 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
 
       case 'process_exit': {
         // The CLI process has exited — clear the stdin handle but keep sessionId for resume
+        commitPartialText(tabId, msgStdinId);
         clearPartial();
         console.log('[TOKENICODE:session] process_exit received', { stdinId: msg.__stdinId });
 
@@ -2005,15 +2038,14 @@ export function useStreamProcessor(config: StreamProcessorConfig) {
           useChatStore.getState().setSessionMeta(tabId, { pendingCommandMsgId: undefined });
         }
 
-        // If the session was running and no assistant messages were received,
-        // the process failed at startup. Show the last stderr error to the user.
+        // Check this turn only. Old assistant messages must not hide a failed
+        // follow-up that exited without returning any text.
         const exitTabData = useChatStore.getState().getTab(tabId);
         const exitStatus = exitTabData?.sessionStatus;
         const exitMsgs = exitTabData?.messages ?? [];
         if (exitStatus === 'running') {
-          const hasAssistantReply = exitMsgs.some(
-            (m: ChatMessage) => m.role === 'assistant' && (m.type === 'text' || m.type === 'tool_use'),
-          );
+          const turnStartTime = exitTabData?.sessionMeta.turnStartTime ?? 0;
+          const hasAssistantReply = hasAssistantReplyForTurn(exitMsgs, turnStartTime);
           if (!hasAssistantReply) {
             if (lastStderrRef.current) {
               // Detect macOS TCC permission errors and provide actionable guidance

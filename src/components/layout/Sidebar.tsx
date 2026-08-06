@@ -7,13 +7,14 @@ import { ConversationList } from '../conversations/ConversationList';
 import { useT } from '../../lib/i18n';
 import { useAgentStore } from '../../stores/agentStore';
 import { IS_ALPHA } from '../../lib/edition';
-import { displayDeepSeekModelName } from '../../lib/deepseek-models';
+import { displayProviderModelName } from '../../lib/deepseek-models';
+import { resolveModelForProvider } from '../../lib/api-provider';
 import { ProfileStatsModal } from '../profile/ProfileStatsModal';
 
 /** Map raw model ID to friendly display name */
 function getModelDisplayName(modelId: string): string {
-  const option = MODEL_OPTIONS.find((m) => modelId.includes(m.id));
-  return option?.short || displayDeepSeekModelName(modelId);
+  const option = MODEL_OPTIONS.find((m) => modelId === m.id);
+  return option?.short || displayProviderModelName(modelId);
 }
 
 /** Format token count: 1234 → "1.2k", 123456 → "123k", 1234567 → "1.2M" */
@@ -154,7 +155,7 @@ export function Sidebar() {
               : sessionStatus === 'error' ? 'bg-error'
               : 'bg-text-tertiary'}`} />
           <span className="text-xs font-medium text-text-primary truncate">
-            {sessionMeta.model ? getModelDisplayName(sessionMeta.model) : 'DeepSeek'}
+            {getModelDisplayName(sessionMeta.model || resolveModelForProvider(useSettingsStore.getState().selectedModel))}
           </span>
           {(sessionMeta.totalInputTokens || sessionMeta.totalOutputTokens
             || sessionMeta.inputTokens || sessionMeta.outputTokens) ? (

@@ -2,6 +2,24 @@
 
 ## 更新记录
 
+### v1.0.8
+
+- 修复 AskUserQuestion 选项点击后只在界面显示已响应、却没有真正发送给模型的问题；答案现在按问题原文组装，并通过 Claude Code 控制协议回传。
+- 修复 v1.0.7 过滤掉部分历史会话的问题；即使会话尚未写入助手回复，也会继续保留在历史列表中，避免旧对话莫名消失。
+- 修复重新打开历史会话后上下文归零或重复计算的问题；应用会从持久化会话恢复最新上下文快照，并对重复的消息记录去重。
+- 完成态的思考过程默认展开，用户可以直接看到小字思考内容；发送 `hi`、弹窗选择、响应完成与重启后的历史恢复均已通过真实桌面交互验证。
+- 启动诊断日志只记录事件类型、耗时和字节数，不再写入提示词、回复、思考内容或工具参数。
+
+### v1.0.7
+
+- 修复回退后旧分支与新分支同时出现在历史列表、JSONL 重放记录重复的问题；回退提示不再写进对话历史，旧记录仍保留在本机用于恢复。
+- 修复文件监听覆盖用户主目录时产生大量事件，导致 CPU 升高、任务长期显示“仍在运行中”、实际完成却不发送回复的问题；同时保留仅有流式增量时的最终回复。
+- 模型名称现在按实际 Provider 和模型映射显示。未配置 Provider 时保持 Claude 原名，Claude 不再被强制改成 DeepSeek；官方 Claude 的思考等级与小字思考内容也会正常保留。
+- Skills 的 `/` 调用改为由应用解析，支持一次选择多个技能。默认只扫描 `~/.claude/skills` 和项目的 `.claude/skills`，不再混入 Codex/Agent 专用目录；可在 Skills 面板手动添加兼容目录。
+- 外部网站改为在独立的应用内浏览窗口打开，绕过 iframe 的“已阻止访问”；localhost、本地文件仍可在侧栏预览，并移除了没有真实截图能力的“截屏”按钮。
+- Windows 上 Provider 与 Skills 翻译 API Key 的加密主密钥改由 DPAPI 绑定当前用户保护，旧 Provider 密钥和旧的本地存储翻译配置会自动迁移；运行日志不再输出参数、PATH、环境变量值和带凭据的代理地址。
+- 保留 v1.0.6 的头像上传与稳定上下文快照修复；上下文显示继续计入缓存输入 token，不会因重新查看而归零。
+
 ### v1.0.6
 
 - 修复设置页 AI 头像和用户头像无法从本地上传的问题，选图后可以正常预览、裁剪并保存。
@@ -104,20 +122,20 @@
 
 ## 功能亮点
 
-- **DeepSeek / CC Switch 适配**
-  - 界面模型名改为 `DeepseekV4Pro` / `DeepseekV4Flash`
-  - 实际 API 请求自动映射为 `deepseek-v4-pro` / `deepseek-v4-flash`
-  - 兼容旧的 Claude/Fable/Opus/Sonnet/Haiku 显示名，自动归一到 DeepSeek 模型
+- **Provider 与模型显示**
+  - 界面始终显示实际选择或映射后的模型名称，不再把 Claude 强制伪装成 DeepSeek
+  - DeepSeek / CC Switch 仍可通过 Provider 预设和模型映射使用 `deepseek-v4-pro` / `deepseek-v4-flash`
+  - 支持 Anthropic、OpenAI 兼容网关和自定义模型映射
 
 - **独立 Provider 配置**
   - 支持 Anthropic 格式和 OpenAI 兼容格式
   - 支持自定义 Base URL、API Key、模型映射和代理
   - 适合接入 CC Switch、DeepSeek 兼容代理、第三方模型网关
 
-- **Codex Skills 面板**
-  - 自动扫描本机已安装的 Codex/Agent skills
-  - 支持 `.codex/skills`、`.agents/skills`、`.claude/skills` 和插件缓存
-  - 自动去重，避免插件缓存和本地目录重复显示
+- **Claude Skills 面板**
+  - 默认只扫描全局和项目内的 `.claude/skills`
+  - 可由用户手动添加其它 Claude 兼容技能目录
+  - 支持 `/skill` 调用和一次组合多个 Skills
   - 可查看、编辑、启用/禁用、复制、定位 skill 文件
 
 - **Skills 翻译**
@@ -127,7 +145,8 @@
   - 翻译结果本地缓存，减少重复 API 调用
 
 - **内置网页预览**
-  - 右侧边栏新增 Preview 面板，可直接打开网页、localhost 和本地预览地址
+  - localhost 和本地预览地址可直接在右侧 Preview 面板打开
+  - 外部网站使用独立的应用内浏览窗口，避免 iframe 拒绝访问
   - 支持后退、前进、刷新、外部浏览器打开
   - 提供 Tauri 预览控制命令，方便后续接入 AI/MCP 工具调用
 
@@ -155,12 +174,12 @@
 
 | 方向 | 原版 TOKENICODE | DeepSeek Alpha 魔改版 |
 | --- | --- | --- |
-| 模型显示 | 主要沿用 Claude / Opus / Sonnet / Haiku 等命名 | 显示为 `DeepseekV4Pro`、`DeepseekV4Flash`，并自动映射到真实 API model |
+| 模型显示 | 主要沿用 Claude / Opus / Sonnet / Haiku 等命名 | 显示实际模型；DeepSeek 等第三方模型只在 Provider 映射后显示 |
 | CC Switch 适配 | 需要用户自己理解 Claude 名称和代理映射关系 | 内置 DeepSeek V4 Pro / Flash 显示与请求映射，减少填错模型名的问题 |
 | Provider 配置 | 更偏原始 Claude Code 使用方式 | 增加独立 Provider 管理，支持 Anthropic / OpenAI 兼容格式、Base URL、API Key、模型映射、代理 |
-| Skills 面板 | 原版没有面向 Codex skills 的完整管理面板 | 可以扫描、去重、查看、编辑、启用/禁用本机 Codex/Agent skills |
+| Skills 面板 | 原版没有完整管理面板 | 默认管理 Claude Skills，支持自定义目录、斜杠调用和多 Skills 组合 |
 | Skills 翻译 | 需要自己读英文 `SKILL.md` | 可以调用独立翻译 API 翻译技能列表和 `SKILL.md` 预览正文，且只改预览不改原文件 |
-| Preview 工具 | 没有内置网页预览控制面板 | 右侧新增 Preview，可打开网页、localhost、本地页面，并为后续 AI 控制预留命令 |
+| Preview 工具 | 没有内置网页预览控制面板 | 本地页面在侧栏预览，外部网站在独立应用内浏览窗口打开 |
 | 主题 | 以原有浅/深色和背景为主 | 新增 VS Code Dark、纯白简约等更偏工作流的界面风格 |
 | 字体 | 字体跟随范围有限，部分小标签仍固定等宽 | 增加字体选择，并让小标签/路径/模型名等区域默认跟随界面字体 |
 | 新对话目录 | 新建对话时容易回到重新选文件夹流程 | 记住上次项目目录，新任务直接进入默认文件夹，并可在输入框下方快速切换 |
@@ -170,8 +189,8 @@
 
 请到 GitHub Releases 下载对应系统的安装包：
 
-- Windows x64 便携版：`tokenicode-deepseek-alpha-v1.0.6-windows-x64.exe`
-- Windows x64 安装版：`tokenicode-deepseek-alpha-v1.0.6-windows-x64-setup.exe`
+- Windows x64 便携版：`tokenicode-deepseek-alpha-v1.0.8-windows-x64.exe`
+- Windows x64 安装版：`tokenicode-deepseek-alpha-v1.0.8-windows-x64-setup.exe`
 
 下载后双击运行即可。首次运行时请按需要配置 CC Switch / DeepSeek API。
 
@@ -200,7 +219,7 @@
 - `Anthropic` / `OpenAI`：选择接口格式
 - `Base URL`：填写 API 地址，例如 CC Switch 或 DeepSeek 网关地址
 - `API Key`：填写密钥
-- `Model`：建议填写快速模型，例如 `deepseek-v4-flash`
+- `Model`：填写供应商实际支持的模型，例如 `claude-sonnet-4-6` 或 `deepseek-v4-flash`
 - `Proxy URL`：可选，通常留空；仅需要代理时填写 `http://127.0.0.1:7890` 这类地址
 
 配置后点击 `译` 即可翻译技能列表。打开 `SKILL.md` 预览时，也可以点击右上角 `译` 翻译正文。

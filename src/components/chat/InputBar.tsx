@@ -24,7 +24,8 @@ import { useCommandStore } from '../../stores/commandStore';
 import { envFingerprint, resolveModelForProvider, resolveModelOrError, resolveThinkingLevelForProvider } from '../../lib/api-provider';
 import { useProviderStore } from '../../stores/providerStore';
 import { PROVIDER_PRESETS } from '../../lib/provider-presets';
-import { displayDeepSeekModelName } from '../../lib/deepseek-models';
+import { displayProviderModelName } from '../../lib/deepseek-models';
+import { buildSkillPrompt, resolveSkillInvocation } from '../../lib/skill-invocation';
 import { stripAnsi } from '../../lib/strip-ansi';
 import { usePlanPanelStore } from './ChatPanel';
 import { PlanReviewCard } from './PlanReviewCard';
@@ -321,14 +322,14 @@ export function InputBar() {
   const [slashVisible, setSlashVisible] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
   const slashCommands = useCommandStore((s) => s.commands);
-  const activePrefix = useCommandStore((s) => s.activePrefix);
+  const activePrefixes = useCommandStore((s) => s.activePrefixes);
 
-  // Focus input when activePrefix is set externally (e.g. from SkillsPanel "Use in Input")
+  // Focus input when skills/commands are selected externally.
   useEffect(() => {
-    if (activePrefix) {
+    if (activePrefixes.length > 0) {
       textareaRef.current?.focus();
     }
-  }, [activePrefix]);
+  }, [activePrefixes]);
 
   // Rewind state
   const [showRewindPanel, setShowRewindPanel] = useState(false);
@@ -394,7 +395,9 @@ export function InputBar() {
   // Relaxed: detect "/" at start of first line, keep popover open even after spaces
   const detectSlashCommand = useCallback((text: string) => {
     const firstLine = text.split('\n')[0];
-    if (firstLine.startsWith('/') && !activePrefix) {
+    const canAddAnotherSkill = activePrefixes.length === 0
+      || activePrefixes.every((item) => item.category === 'skill');
+    if (firstLine.startsWith('/') && canAddAnotherSkill) {
       const query = firstLine.slice(1); // strip leading "/"
       setSlashQuery(query);
       setSlashVisible(true);
@@ -402,7 +405,7 @@ export function InputBar() {
     } else {
       setSlashVisible(false);
     }
-  }, [activePrefix]);
+  }, [activePrefixes]);
 
   // Ref to always point to the latest handleSubmit (avoids stale closure)
   const handleSubmitRef = useRef<() => void>(() => {});
@@ -442,7 +445,7 @@ export function InputBar() {
     // Helper: resolve model ID to display name
     const modelLabel = (id: string | undefined): string => {
       if (!id) return '—';
-      return MODEL_OPTIONS.find((m) => m.id === id)?.label || displayDeepSeekModelName(id);
+      return MODEL_OPTIONS.find((m) => m.id === id)?.label || displayProviderModelName(id);
     };
 
     // Helper: add a structured command feedback message
@@ -655,7 +658,7 @@ export function InputBar() {
     if (cmd.immediate) {
       if (cmd.has_args) {
         // Immediate + has_args: show prefix chip so user can type the argument
-        useCommandStore.getState().setActivePrefix(cmd);
+        useCommandStore.getState().addPrefix(cmd);
         textareaRef.current?.focus();
       } else {
         // Immediate execution: send command via stdin or as first message
@@ -663,7 +666,7 @@ export function InputBar() {
       }
     } else {
       // Deferred: set as immutable prefix chip
-      useCommandStore.getState().setActivePrefix(cmd);
+      useCommandStore.getState().addPrefix(cmd);
       textareaRef.current?.focus();
     }
   }, [executeImmediateCommand]);
@@ -691,7 +694,7 @@ export function InputBar() {
     const pendingPlanReview = tabState.messages.find(
       (m: import('../../stores/chatStore').ChatMessage) => m.type === 'plan_review' && !m.resolved,
     );
-    if (pendingPlanReview && !text && !useCommandStore.getState().activePrefix) {
+    if (pendingPlanReview && !text && useCommandStore.getState().activePrefixes.length === 0) {
       const stdinId = tabState.sessionMeta.stdinId;
       const permData = pendingPlanReview.permissionData;
       if (permData?.requestId && stdinId) {
@@ -720,14 +723,23 @@ export function InputBar() {
       return;
     }
 
-    // Prefix mode: prepend the command/skill name
-    const prefix = useCommandStore.getState().activePrefix;
-    if (prefix) {
-      text = text ? `${prefix.name} ${text}` : prefix.name;
-      useCommandStore.getState().clearPrefix();
+    // Resolve selected and directly typed skills in the app. This avoids the
+    // CLI's "command not found" path and supports multiple/custom directories.
+    const invocation = resolveSkillInvocation(
+      text,
+      useCommandStore.getState().activePrefixes,
+      useCommandStore.getState().commands,
+    );
+    useCommandStore.getState().clearPrefixes();
+
+    const selectedSkills = invocation.skills;
+    const selectedCommand = invocation.command;
+    text = invocation.userText;
+    if (selectedCommand) {
+      text = text ? `${selectedCommand.name} ${text}` : selectedCommand.name;
     }
 
-    if (!text) return;
+    if (!text && selectedSkills.length === 0) return;
 
     // Intercept immediate (built-in) commands even when submitted directly
     // (e.g. user types "/help" and presses Enter without using the popover)
@@ -776,6 +788,30 @@ export function InputBar() {
       }
     }
 
+    if (selectedSkills.length > 0) {
+      try {
+        const loadedSkills = await Promise.all(selectedSkills.map(async (skill) => ({
+          skill,
+          content: await bridge.readSkill(skill.path!),
+        })));
+        text = buildSkillPrompt(
+          loadedSkills.map(({ skill, content }) => ({ name: skill.name, path: skill.path, content })),
+          text,
+        );
+      } catch (error) {
+        console.error('[TOKENICODE:skills] failed to read selected skill:', error);
+        addMessage(tabId, {
+          id: generateMessageId(),
+          role: 'system',
+          type: 'text',
+          content: t('skills.readFailed'),
+          commandType: 'error',
+          timestamp: Date.now(),
+        });
+        return;
+      }
+    }
+
     // Append file paths if there are attachments
     if (files.length > 0) {
       const filePaths = files.map((f) => f.path).join('\n');
@@ -793,7 +829,7 @@ export function InputBar() {
         id: generateMessageId(),
         role: 'user',
         type: 'text',
-        content: rawInput.trim(),
+        content: rawInput.trim() || selectedSkills.map((skill) => skill.name).join(' '),
         timestamp: Date.now(),
         attachments: files.length > 0
           ? files.map((f) => ({ name: f.name, path: f.path, isImage: f.isImage, preview: f.preview }))
@@ -925,8 +961,8 @@ export function InputBar() {
           const currentModel = resolveModelForProvider(selectedModel);
           const spawnedModel = getActiveTabState().sessionMeta.spawnedModel;
           if (spawnedModel && currentModel !== spawnedModel) {
-            const oldShort = MODEL_OPTIONS.find((m) => m.id === spawnedModel)?.short ?? displayDeepSeekModelName(spawnedModel);
-            const newShort = MODEL_OPTIONS.find((m) => m.id === currentModel)?.short ?? displayDeepSeekModelName(currentModel);
+            const oldShort = MODEL_OPTIONS.find((m) => m.id === spawnedModel)?.short ?? displayProviderModelName(spawnedModel);
+            const newShort = MODEL_OPTIONS.find((m) => m.id === currentModel)?.short ?? displayProviderModelName(currentModel);
             console.warn(`[TOKENICODE] Model changed (${oldShort} → ${newShort}), killing stale session`);
             bridge.killSession(stdinId).catch(() => {});
             if ((window as any).__claudeUnlisteners?.[stdinId]) {
@@ -940,12 +976,12 @@ export function InputBar() {
             // Thinking signatures are model-specific; resuming with a different model
             // causes the API to reject the request (400).
             useChatStore.setState((state) => {
-              const tab = state.tabs.get(tabId);
+              const tab = state.tabs.get(tabId!);
               if (!tab) return {};
               const cleanedMessages = tab.messages.filter(m => m.type !== 'thinking');
               if (cleanedMessages.length === tab.messages.length) return {}; // nothing to clean
               const newTabs = new Map(state.tabs);
-              newTabs.set(tabId, { ...tab, messages: cleanedMessages });
+              newTabs.set(tabId!, { ...tab, messages: cleanedMessages });
               return { tabs: newTabs, sessionCache: newTabs };
             });
             stdinId = undefined;
@@ -1093,13 +1129,13 @@ export function InputBar() {
         const unlistenExit = await onSessionExit(preGeneratedId, () => {
           // Resolve the tab that owns this stdinId
           const exitTabId = useSessionStore.getState().getTabForStdin(preGeneratedId) || tabId;
-          const exitTab = useChatStore.getState().getTab(exitTabId);
+          const exitTab = useChatStore.getState().getTab(exitTabId!);
           if (!exitTab) return;
           // Only act if this is still the active stdinId (avoid stale cleanup)
           if (exitTab.sessionMeta.stdinId === preGeneratedId) {
-            useChatStore.getState().setSessionMeta(exitTabId, { stdinId: undefined });
+            useChatStore.getState().setSessionMeta(exitTabId!, { stdinId: undefined });
             if (exitTab.sessionStatus === 'running') {
-              useChatStore.getState().setSessionStatus(exitTabId, 'idle');
+              useChatStore.getState().setSessionStatus(exitTabId!, 'idle');
             }
           }
         });
@@ -1143,8 +1179,10 @@ export function InputBar() {
         console.log('[TOKENICODE:session] started successfully', { sessionId: session.session_id, pid: session.pid, cli: session.cli_path });
 
         // Store both: session_id for tracking, stdinId (preGeneratedId) for stdin communication
+        const rewoundFromSessionId = getActiveTabState().sessionMeta.rewoundFromSessionId;
         setSessionMeta(tabId, {
           sessionId: session.session_id,
+          rewoundFromSessionId: undefined,
           stdinId: preGeneratedId,
           envFingerprint: envFingerprint(),
           snapshotMode: liveSessionMode,
@@ -1154,6 +1192,24 @@ export function InputBar() {
           snapshotProviderId: liveProviderId,
           spawnedModel: liveResolvedModel,
         });
+
+        // Rewind replaces the visible history instead of leaving old and new
+        // branches side-by-side. The old JSONL remains on disk for recovery.
+        if (rewoundFromSessionId && session.session_id !== tabId) {
+          const chatState = useChatStore.getState();
+          const tabData = chatState.getTab(tabId);
+          if (tabData) {
+            const newTabs = new Map(chatState.tabs);
+            newTabs.set(session.session_id, { ...tabData, tabId: session.session_id });
+            newTabs.delete(tabId);
+            useChatStore.setState({ tabs: newTabs, sessionCache: newTabs });
+          }
+          useSessionStore.getState().promoteDraft(tabId, session.session_id);
+          bridge.untrackSession(rewoundFromSessionId).catch((error) => {
+            console.warn('[TOKENICODE:rewind] failed to hide superseded session:', error);
+          });
+          tabId = session.session_id;
+        }
         // Note: stdinId → tabId mapping already registered before listener setup (TK-329)
 
         // Track the session and refresh conversation list
@@ -1321,9 +1377,9 @@ export function InputBar() {
     }
 
     // Backspace at position 0 with empty input removes active prefix
-    if (e.key === 'Backspace' && activePrefix && (textareaRef.current?.isEmpty() ?? true)) {
+    if (e.key === 'Backspace' && activePrefixes.length > 0 && (textareaRef.current?.isEmpty() ?? true)) {
       e.preventDefault();
-      useCommandStore.getState().clearPrefix();
+      useCommandStore.getState().removePrefix(activePrefixes[activePrefixes.length - 1].name);
       return true;
     }
 
@@ -1440,9 +1496,11 @@ export function InputBar() {
         )}
 
         {/* Active prefix description — shown above textarea when a command is selected */}
-        {activePrefix && (
+        {activePrefixes.length > 0 && (
           <div className="mb-1 px-1">
-            <span className="text-[10px] text-text-tertiary">{activePrefix.description}</span>
+            <span className="text-[10px] text-text-tertiary">
+              {activePrefixes.map((item) => item.description).join(' · ')}
+            </span>
           </div>
         )}
 
@@ -1469,14 +1527,15 @@ export function InputBar() {
           >
           {/* Prefix chip + textarea inline */}
           <div className="flex-1 flex items-start gap-0 min-w-0">
-            {activePrefix && (
-              <div className="flex-shrink-0 flex items-center h-[24px] mt-[2px]">
+            {activePrefixes.length > 0 && (
+              <div className="flex-shrink-0 flex flex-wrap items-center gap-1 mt-[2px]">
+                {activePrefixes.map((prefix) => (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5
                   bg-accent/10 border border-accent/20 rounded-md
-                  text-xs text-accent font-medium font-mono whitespace-nowrap mr-1.5">
-                  {activePrefix.name}
+                  text-xs text-accent font-medium font-mono whitespace-nowrap" key={prefix.name}>
+                  {prefix.name}
                   <button
-                    onClick={() => useCommandStore.getState().clearPrefix()}
+                    onClick={() => useCommandStore.getState().removePrefix(prefix.name)}
                     className="hover:text-red-400 transition-smooth ml-0.5"
                   >
                     <svg width="10" height="10" viewBox="0 0 12 12" fill="none"
@@ -1485,6 +1544,7 @@ export function InputBar() {
                     </svg>
                   </button>
                 </span>
+                ))}
               </div>
             )}
             <TiptapEditor
@@ -1496,7 +1556,7 @@ export function InputBar() {
               }}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
-              placeholder={activePrefix
+              placeholder={activePrefixes.length > 0
                 ? t('input.prefixPlaceholder')
                 : isRunning
                   ? t('input.followUp')
@@ -1507,7 +1567,7 @@ export function InputBar() {
             />
           </div>
           {/* Shortcut hint — visible when input area is not focused and input is empty */}
-          {!input && !activePrefix && !isRunning && (
+          {!input && activePrefixes.length === 0 && !isRunning && (
             <span className="flex-shrink-0 text-[10px] text-text-tertiary/50
               group-focus-within/input:hidden select-none whitespace-nowrap
               self-center mr-1">
@@ -1553,7 +1613,7 @@ export function InputBar() {
           )}
           <button
             onClick={handleSubmit}
-            disabled={isAwaiting || (!input.trim() && !activePrefix)}
+            disabled={isAwaiting || (!input.trim() && activePrefixes.length === 0)}
             className={`flex-shrink-0 self-end w-8 h-8 rounded-[10px]
               flex items-center justify-center transition-smooth
               disabled:opacity-30 disabled:cursor-not-allowed

@@ -8,6 +8,7 @@
     "core:window:allow-start-dragging",
     "core:window:allow-toggle-maximize",
     "core:window:allow-set-ignore-cursor-events",
+    "core:webview:allow-create-webview-window",
     "opener:default",
     "dialog:default",
     "updater:default",

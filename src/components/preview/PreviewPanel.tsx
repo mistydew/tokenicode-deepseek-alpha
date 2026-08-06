@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { openUrl as openExternalUrl } from '@tauri-apps/plugin-opener';
-import { usePreviewStore, PreviewCommand, PreviewSnapshot } from '../../stores/previewStore';
+import { usePreviewStore, PreviewCommand } from '../../stores/previewStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useT } from '../../lib/i18n';
 
@@ -12,16 +13,35 @@ export function PreviewPanel() {
   const history = usePreviewStore((s) => s.history);
   const historyIndex = usePreviewStore((s) => s.historyIndex);
   const reloadToken = usePreviewStore((s) => s.reloadToken);
-  const lastSnapshot = usePreviewStore((s) => s.lastSnapshot);
   const openUrl = usePreviewStore((s) => s.openUrl);
   const refresh = usePreviewStore((s) => s.refresh);
   const back = usePreviewStore((s) => s.back);
   const forward = usePreviewStore((s) => s.forward);
-  const setSnapshot = usePreviewStore((s) => s.setSnapshot);
   const setSecondaryTab = useSettingsStore((s) => s.setSecondaryTab);
   const [draftUrl, setDraftUrl] = useState(url === 'about:blank' ? '' : url);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState('');
+
+  const isEmbeddedPreview = /^(about:|data:|file:|https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$))/i.test(url);
+
+  const openInAppWindow = async (target: string) => {
+    if (!/^https?:\/\//i.test(target)) return;
+    const label = `browser-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    try {
+      new WebviewWindow(label, {
+        url: target,
+        title: target,
+        width: 1100,
+        height: 760,
+        center: true,
+      });
+      setNotice(t('preview.openedInAppWindow'));
+    } catch (error) {
+      console.warn('[preview] in-app browser failed, opening system browser', error);
+      await openExternalUrl(target);
+      setNotice(t('preview.openedExternal'));
+    }
+  };
 
   useEffect(() => {
     setDraftUrl(url === 'about:blank' ? '' : url);
@@ -35,7 +55,14 @@ export function PreviewPanel() {
     const unlistenPromise = listen<PreviewCommand>('tokenicode-preview-command', (event) => {
       const command = event.payload;
       setSecondaryTab('preview');
-      if (command.type === 'open') openUrl(command.url);
+      if (command.type === 'open') {
+        openUrl(command.url);
+        const normalized = usePreviewStore.getState().url;
+        if (/^https?:\/\//i.test(normalized)
+          && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(normalized)) {
+          openInAppWindow(normalized);
+        }
+      }
       if (command.type === 'refresh') refresh();
       if (command.type === 'back') back();
       if (command.type === 'forward') forward();
@@ -51,35 +78,11 @@ export function PreviewPanel() {
 
   const submitUrl = () => {
     openUrl(draftUrl);
-  };
-
-  const captureSnapshot = async () => {
-    const frame = iframeRef.current;
-    const viewport = {
-      width: frame?.clientWidth || 0,
-      height: frame?.clientHeight || 0,
-    };
-    let title = '';
-    let readableText = '';
-    let note = '';
-    try {
-      const doc = frame?.contentDocument;
-      title = doc?.title || '';
-      readableText = (doc?.body?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 4000);
-      if (!readableText) note = t('preview.snapshotEmpty');
-    } catch {
-      note = t('preview.crossOriginSnapshot');
+    const normalized = usePreviewStore.getState().url;
+    if (/^https?:\/\//i.test(normalized)
+      && !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(normalized)) {
+      openInAppWindow(normalized);
     }
-    const snapshot: PreviewSnapshot = {
-      url,
-      title,
-      capturedAt: new Date().toISOString(),
-      viewport,
-      ...(readableText ? { readableText } : {}),
-      ...(note ? { note } : {}),
-    };
-    setSnapshot(snapshot);
-    setNotice(note || t('preview.snapshotReady'));
   };
 
   return (
@@ -152,13 +155,12 @@ export function PreviewPanel() {
             {loading ? t('preview.loading') : url}
           </div>
           <div className="flex items-center gap-1">
-            <button
-              onClick={captureSnapshot}
-              className="preview-action-btn"
-              title={t('preview.snapshot')}
-            >
-              {t('preview.snapshotShort')}
-            </button>
+            {!isEmbeddedPreview && url !== 'about:blank' && (
+              <button onClick={() => openInAppWindow(url)} className="preview-action-btn"
+                title={t('preview.openInAppWindow')}>
+                {t('preview.openInAppWindow')}
+              </button>
+            )}
             <button
               onClick={() => url !== 'about:blank' && openExternalUrl(url)}
               className="preview-icon-btn"
@@ -180,6 +182,14 @@ export function PreviewPanel() {
           <div className="h-full flex items-center justify-center bg-bg-primary text-text-tertiary text-sm">
             {t('preview.empty')}
           </div>
+        ) : !isEmbeddedPreview ? (
+          <div className="h-full flex flex-col items-center justify-center gap-3 bg-bg-primary px-6 text-center">
+            <div className="text-sm text-text-primary">{t('preview.remotePageTitle')}</div>
+            <div className="text-xs text-text-tertiary max-w-sm">{t('preview.remotePageHint')}</div>
+            <button onClick={() => openInAppWindow(url)} className="preview-action-btn">
+              {t('preview.openInAppWindow')}
+            </button>
+          </div>
         ) : (
           <iframe
             key={iframeKey}
@@ -199,9 +209,9 @@ export function PreviewPanel() {
         )}
       </div>
 
-      {(notice || lastSnapshot) && (
+      {notice && (
         <div className="px-3 py-2 border-t border-border-subtle bg-bg-primary text-[11px] text-text-muted">
-          <div className="truncate">{notice || lastSnapshot?.note || t('preview.snapshotReady')}</div>
+          <div className="truncate">{notice}</div>
         </div>
       )}
     </div>

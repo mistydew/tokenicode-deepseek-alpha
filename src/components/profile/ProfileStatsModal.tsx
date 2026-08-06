@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { bridge, ProfileStats } from '../../lib/tauri-bridge';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { displayDeepSeekModelName } from '../../lib/deepseek-models';
+import { displayProviderModelName } from '../../lib/deepseek-models';
 
 interface Props {
   open: boolean;
@@ -310,7 +310,7 @@ export function ProfileStatsModal({ open, onClose }: Props) {
                           </svg>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm text-text-primary truncate">{displayDeepSeekModelName(model.model)}</div>
+                          <div className="text-sm text-text-primary truncate">{displayProviderModelName(model.model)}</div>
                           <div className="text-xs text-text-tertiary">{model.message_count} 次响应</div>
                         </div>
                         <div className="text-sm text-text-muted">{formatTokens(model.total_tokens)}</div>

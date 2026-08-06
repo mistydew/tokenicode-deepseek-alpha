@@ -1,9 +1,9 @@
 import { useProviderStore } from '../stores/providerStore';
+import { PROVIDER_PRESETS } from './provider-presets';
 import type { ModelId } from '../stores/settingsStore';
 import {
   DEEPSEEK_V4_FLASH,
   DEEPSEEK_V4_PRO,
-  normalizeDeepSeekModelName,
   normalizeProviderModelName,
 } from './deepseek-models';
 
@@ -28,11 +28,7 @@ export type ModelResolution =
 export function resolveModelOrError(selectedModel: string): ModelResolution {
   const provider = useProviderStore.getState().getActive();
   if (!provider) {
-    const normalized = normalizeDeepSeekModelName(selectedModel);
-    return {
-      ok: true,
-      model: normalized === selectedModel ? DEEPSEEK_V4_FLASH : normalized,
-    };
+    return { ok: true, model: selectedModel };
   }
 
   // 1. Check direct model ID mapping first (e.g. 'claude-opus-4-6-1m' → 'glm-5-1m')
@@ -91,10 +87,12 @@ export function supportsDeepSeekThinking(model: string): boolean {
   return normalized === DEEPSEEK_V4_PRO || normalized === DEEPSEEK_V4_FLASH;
 }
 
-export function resolveThinkingLevelForProvider(selectedModel: string, requestedLevel: string): string {
+export function resolveThinkingLevelForProvider(_selectedModel: string, requestedLevel: string): string {
   if (requestedLevel === 'off') return 'off';
-  const resolvedModel = resolveModelForProvider(selectedModel);
-  return supportsDeepSeekThinking(resolvedModel) ? requestedLevel : 'off';
+  const provider = useProviderStore.getState().getActive();
+  if (!provider) return requestedLevel;
+  const support = PROVIDER_PRESETS.find((preset) => preset.id === provider.preset)?.thinkingSupport;
+  return support === 'ignored' ? 'off' : requestedLevel;
 }
 
 /**

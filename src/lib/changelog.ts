@@ -19,6 +19,64 @@ export interface ChangelogEntry {
  */
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.0.8',
+    date: '2026-08-04',
+    highlights: {
+      zh: ['修复 AskUserQuestion、历史会话、上下文恢复与思考显示回归'],
+      en: ['AskUserQuestion, session history, context restore, and thinking display regression fixes'],
+    },
+    categories: [
+      {
+        label: { zh: '修复', en: 'Fixed' },
+        items: {
+          zh: [
+            'AskUserQuestion 选择结果按问题原文组装并通过控制协议真实回传，不再只显示已响应',
+            '历史列表不再过滤尚无助手记录的会话，避免 v1.0.7 升级后旧对话消失',
+            '重新打开会话时恢复最新上下文快照，并对重复消息记录去重，避免归零或双倍计算',
+            '已完成的思考过程默认展开，直接显示小字思考内容',
+            '启动诊断日志不再记录提示词、回复、思考内容或工具参数',
+          ],
+          en: [
+            'AskUserQuestion selections are keyed by question text and delivered through the control protocol',
+            'Sessions without an assistant record remain visible instead of disappearing from history',
+            'Reopened sessions restore the latest context snapshot with duplicate message usage removed',
+            'Completed thinking details are expanded by default',
+            'Startup diagnostics no longer record prompts, replies, thinking text, or tool input',
+          ],
+        },
+      },
+    ],
+  },
+  {
+    version: '1.0.7',
+    date: '2026-08-02',
+    highlights: {
+      zh: ['会话、模型、Skills、内置浏览器与密钥安全集中修复'],
+      en: ['Session, model, Skills, browser, and credential security fixes'],
+    },
+    categories: [
+      {
+        label: { zh: '修复', en: 'Fixed' },
+        items: {
+          zh: [
+            '修复回退后历史会话重复、文件监听风暴和任务完成后不发送回复的问题',
+            '模型名称跟随实际 Provider 映射，Claude 不再显示为 DeepSeek，并恢复真实思考状态',
+            'Skills 斜杠调用支持单个和多个技能；默认只扫描 Claude 目录，也可手动添加目录',
+            '外部网页改用独立内置浏览窗口，移除无实际截图能力的伪截屏按钮',
+            'Provider 与 Skills 翻译 API Key 改用 DPAPI 保护，并停止输出可能泄露密钥的运行日志',
+          ],
+          en: [
+            'Fixed duplicate rewind history, file-watcher event storms, and completed tasks that never delivered a reply',
+            'Model labels now follow the active provider mapping; Claude is no longer mislabeled as DeepSeek, and real thinking status is preserved',
+            'Slash Skills support one or multiple selections; only Claude directories are scanned by default, with custom roots available',
+            'External pages open in a dedicated in-app browser window; the non-functional snapshot control was removed',
+            'Provider and Skills translation API keys are protected with Windows DPAPI and credential-bearing runtime logs are no longer emitted',
+          ],
+        },
+      },
+    ],
+  },
+  {
     version: '0.10.0',
     date: '2026-04-05',
     highlights: {

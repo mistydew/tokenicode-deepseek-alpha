@@ -54,10 +54,20 @@ export function parseSessionMessages(rawMessages: any[]): LoadedSession {
 
   // Collect tool_use_id → index mapping for binding tool results
   const toolUseIdToIndex = new Map<string, number>();
+  const seenSourceRecords = new Set<string>();
 
   for (const msg of rawMessages) {
     // Skip system-injected meta messages
     if (msg.isMeta) continue;
+
+    // Rewind/resume can replay an already persisted JSONL record. Source UUIDs
+    // are stable, so discard record replays without collapsing legitimate
+    // repeated prompts that have different UUIDs.
+    if (typeof msg.uuid === 'string' && msg.uuid) {
+      const sourceKey = `${msg.type || msg.role || 'unknown'}:${msg.uuid}`;
+      if (seenSourceRecords.has(sourceKey)) continue;
+      seenSourceRecords.add(sourceKey);
+    }
 
     // Handle tool_result messages: attach result to parent tool_use card
     if (msg.toolUseResult || msg.type === 'tool_result') {
@@ -199,7 +209,7 @@ export function parseSessionMessages(rawMessages: any[]): LoadedSession {
             }
           } else if (block.type === 'thinking') {
             messages.push({
-              id: generateMessageId(),
+              id: msg.uuid ? `${msg.uuid}_thinking_${messages.length}` : generateMessageId(),
               role: 'assistant',
               type: 'thinking',
               content: block.thinking || '',

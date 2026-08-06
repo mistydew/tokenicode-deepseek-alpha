@@ -7,7 +7,7 @@ import { parseAndValidate, importAsProvider, exportProvider } from '../../lib/ap
 import { AddProviderMenu } from './AddProviderMenu';
 import { ProviderCard, type CardTestStatus } from './ProviderCard';
 import { ProviderForm, type TestStatus } from './ProviderForm';
-import { DEEPSEEK_V4_FLASH, DEEPSEEK_V4_PRO, normalizeProviderModelName } from '../../lib/deepseek-models';
+import { normalizeProviderModelName } from '../../lib/deepseek-models';
 
 export function ProviderManager({ alwaysExpanded = false }: { alwaysExpanded?: boolean } = {}) {
   const t = useT();
@@ -47,9 +47,9 @@ export function ProviderManager({ alwaysExpanded = false }: { alwaysExpanded?: b
       baseUrl: preset.baseUrl,
       apiFormat: preset.apiFormat,
       modelMappings: [
-        { tier: 'opus', providerModel: preset.defaultModels?.opus || preset.defaultModel || DEEPSEEK_V4_PRO },
-        { tier: 'sonnet', providerModel: preset.defaultModels?.sonnet || preset.defaultModel || DEEPSEEK_V4_FLASH },
-        { tier: 'haiku', providerModel: preset.defaultModels?.haiku || preset.defaultModel || DEEPSEEK_V4_FLASH },
+        { tier: 'opus', providerModel: preset.defaultModels?.opus || preset.defaultModel || 'claude-opus-4-6' },
+        { tier: 'sonnet', providerModel: preset.defaultModels?.sonnet || preset.defaultModel || 'claude-sonnet-4-6' },
+        { tier: 'haiku', providerModel: preset.defaultModels?.haiku || preset.defaultModel || 'claude-haiku-4-5-20251001' },
       ],
       extra_env: { ...preset.extra_env },
       preset: preset.id,
@@ -68,9 +68,9 @@ export function ProviderManager({ alwaysExpanded = false }: { alwaysExpanded?: b
       baseUrl: '',
       apiFormat: 'openai',
       modelMappings: [
-        { tier: 'opus', providerModel: DEEPSEEK_V4_PRO },
-        { tier: 'sonnet', providerModel: DEEPSEEK_V4_FLASH },
-        { tier: 'haiku', providerModel: DEEPSEEK_V4_FLASH },
+        { tier: 'opus', providerModel: 'claude-opus-4-6' },
+        { tier: 'sonnet', providerModel: 'claude-sonnet-4-6' },
+        { tier: 'haiku', providerModel: 'claude-haiku-4-5-20251001' },
       ],
       extra_env: {},
     });

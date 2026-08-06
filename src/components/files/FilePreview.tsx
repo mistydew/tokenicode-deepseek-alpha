@@ -107,7 +107,7 @@ const DEFAULT_TRANSLATION_CONFIG: SkillTranslationConfig = {
   baseUrl: '',
   apiFormat: 'anthropic',
   apiKey: '',
-  model: 'deepseek-v4-flash',
+  model: 'claude-sonnet-4-6',
   proxyUrl: '',
 };
 

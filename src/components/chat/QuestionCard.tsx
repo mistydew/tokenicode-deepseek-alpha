@@ -3,6 +3,7 @@ import { type ChatMessage, useChatStore, getActiveTabState } from '../../stores/
 import { useSessionStore } from '../../stores/sessionStore';
 import { bridge } from '../../lib/tauri-bridge';
 import { useT } from '../../lib/i18n';
+import { buildAskUserQuestionAnswers } from '../../lib/ask-user-question';
 
 /** Decode literal Unicode escape sequences (e.g. `\u2014`) that appear in text. */
 function decodeUnicodeEscapes(text: string): string {
@@ -103,32 +104,13 @@ export function QuestionCard({ message, floating }: Props) {
       const { setInteractionState, setSessionStatus, setActivityStatus } = useChatStore.getState();
       const stdinId = getActiveTabState().sessionMeta.stdinId;
       if (!stdinId) return;
-      const answers: Record<string, string> = {};
-      questions.forEach((q, qIdx) => {
-        if (useOther[qIdx] && otherText[qIdx]?.trim()) {
-          answers[String(qIdx)] = otherText[qIdx].trim();
-        } else {
-          const selected = selectedMap[qIdx] || new Set<number>();
-          const labels = Array.from(selected)
-            .map((i) => q.options[i]?.label)
-            .filter(Boolean);
-          if (labels.length > 0) {
-            answers[String(qIdx)] = labels.join(', ');
-          }
-        }
-      });
+      const answers = buildAskUserQuestionAnswers(questions, selectedMap, otherText, useOther);
       setInteractionState(qTabId, message.id, 'sending');
       try {
-        // If this question arrived via SDK control_request (permissionData present),
-        // respond via respondPermission with answers in updatedInput.
-        // Otherwise use sendStdin (legacy streaming path).
         const permData = message.permissionData;
-        if (permData?.requestId) {
-          const updatedInput = { ...message.toolInput, answers };
-          await bridge.respondPermission(stdinId, permData.requestId, true, undefined, permData.toolUseId, updatedInput);
-        } else {
-          await bridge.sendStdin(stdinId, JSON.stringify({ answers }));
-        }
+        if (!permData?.requestId) throw new Error('AskUserQuestion request is not ready');
+        const updatedInput = { ...message.toolInput, answers };
+        await bridge.respondPermission(stdinId, permData.requestId, true, undefined, permData.toolUseId, updatedInput);
         setInteractionState(qTabId, message.id, 'resolved');
         setSessionStatus(qTabId, 'running');
         setActivityStatus(qTabId, { phase: 'thinking' });
@@ -150,12 +132,9 @@ export function QuestionCard({ message, floating }: Props) {
     setInteractionState(skipTabId, message.id, 'sending');
     try {
       const permData = message.permissionData;
-      if (permData?.requestId) {
-        const updatedInput = { ...message.toolInput, answers: {} };
-        await bridge.respondPermission(stdinId, permData.requestId, true, undefined, permData.toolUseId, updatedInput);
-      } else {
-        await bridge.sendStdin(stdinId, JSON.stringify({ answers: {} }));
-      }
+      if (!permData?.requestId) throw new Error('AskUserQuestion request is not ready');
+      const updatedInput = { ...message.toolInput, answers: {} };
+      await bridge.respondPermission(stdinId, permData.requestId, true, undefined, permData.toolUseId, updatedInput);
       setInteractionState(skipTabId, message.id, 'resolved');
       setSessionStatus(skipTabId, 'running');
       setActivityStatus(skipTabId, { phase: 'thinking' });

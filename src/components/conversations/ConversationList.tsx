@@ -411,6 +411,21 @@ export function ConversationList() {
       }
       const { messages, agents } = parseSessionMessages(rawMessages);
 
+      // Restore both billing totals and the latest occupied-context snapshot.
+      // Persisted Claude JSONL contains full assistant usage records; without
+      // this step, selecting a historical session incorrectly resets Ctx to 0.
+      const tokenUsage = await bridge.getSessionTokens(sessionId).catch(() => null);
+      if (tokenUsage) {
+        setSessionMeta(sessionId, {
+          inputTokens: tokenUsage.contextInputTokens,
+          outputTokens: tokenUsage.contextOutputTokens,
+          contextInputTokens: tokenUsage.contextInputTokens,
+          contextOutputTokens: tokenUsage.contextOutputTokens,
+          totalInputTokens: tokenUsage.totalInputTokens,
+          totalOutputTokens: tokenUsage.totalOutputTokens,
+        });
+      }
+
       // Apply agents
       for (const agent of agents) {
         agentActions.upsertAgent(agent);

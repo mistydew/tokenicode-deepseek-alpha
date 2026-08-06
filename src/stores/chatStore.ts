@@ -84,6 +84,8 @@ export interface SessionMeta {
   duration?: number;
   turns?: number;
   sessionId?: string;
+  /** Previous session hidden after a rewind starts a replacement CLI session. */
+  rewoundFromSessionId?: string;
   /** The desk-generated ID used as key in Rust StdinManager for sending follow-up messages */
   stdinId?: string;
   /** Message ID of a pending processing card (for CLI slash commands) */

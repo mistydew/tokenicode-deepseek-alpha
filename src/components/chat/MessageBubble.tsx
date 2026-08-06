@@ -949,7 +949,7 @@ function ThinkingMsg({ message }: Props) {
   const t = useT();
   return (
     <div className="ml-11">
-      <details className="group">
+      <details open className="group">
         <summary className="flex items-center gap-1.5 py-1
           cursor-pointer text-[11px] text-text-tertiary list-none select-none">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none"

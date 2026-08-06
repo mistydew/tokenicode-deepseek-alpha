@@ -26,7 +26,7 @@ import { useProviderStore } from '../../stores/providerStore';
 import { MarkdownRenderer } from '../shared/MarkdownRenderer';
 import { SetupWizard } from '../setup/SetupWizard';
 import { AiAvatar } from '../shared/AiAvatar';
-import { displayDeepSeekModelName } from '../../lib/deepseek-models';
+import { displayProviderModelName } from '../../lib/deepseek-models';
 import { parseTurns, type Turn } from '../../lib/turns';
 
 /** Shared plan panel toggle — used by ChatPanel (panel) and InputBar (button) */
@@ -136,8 +136,8 @@ function PlanPanel({ planMessages, onClose }: {
 
 /** Map raw model ID to friendly display name */
 function getModelDisplayName(modelId: string): string {
-  const option = MODEL_OPTIONS.find((m) => modelId.includes(m.id));
-  return option?.short || displayDeepSeekModelName(modelId);
+  const option = MODEL_OPTIONS.find((m) => modelId === m.id);
+  return option?.short || displayProviderModelName(modelId);
 }
 
 
@@ -157,7 +157,7 @@ function formatElapsed(ms: number): string {
 }
 
 /** Cycling typewriter text for thinking phase — like Claude Code website "Built for > coders" */
-const THINKING_WORD_COUNT = 17;
+const THINKING_WORD_COUNT = 5;
 const TYPING_SPEED = 80;      // ms per character (typing)
 const DELETING_SPEED = 40;    // ms per character (deleting)
 const PAUSE_DURATION = 2500;  // ms to hold full word
@@ -372,7 +372,7 @@ function ContextMeter({ sessionMeta, tabId, sessionStatus }: {
   return (
     <div className="hidden md:flex items-center gap-2 ml-2 px-2 py-1 rounded-lg
       bg-bg-secondary/60 border border-border-subtle text-[10px] text-text-tertiary"
-      title={`Actual model: ${displayDeepSeekModelName(modelForContext)}; context used ${used.toLocaleString()} / ${contextWindow.toLocaleString()}; available ${available.toLocaleString()}; auto compact at ${compactThreshold.toLocaleString()}`}>
+      title={`Actual model: ${displayProviderModelName(modelForContext)}; context used ${used.toLocaleString()} / ${contextWindow.toLocaleString()}; available ${available.toLocaleString()}; auto compact at ${compactThreshold.toLocaleString()}`}>
       <span className="font-medium text-text-muted">Ctx</span>
       <div className="w-20 h-1.5 rounded-full bg-bg-tertiary overflow-hidden">
         <div
