@@ -807,6 +807,17 @@ fn safe_data_dir() -> Result<std::path::PathBuf, String> {
         .ok_or_else(|| "Cannot determine home directory".to_string())
 }
 
+/// Return the user's home directory as a string.
+/// The frontend uses this to skip watching the home directory (which has
+/// too many high-frequency system file changes and would otherwise spin the
+/// filesystem watcher / tree refreshes at 100% CPU).
+#[tauri::command]
+fn get_home_dir() -> Result<String, String> {
+    dirs::home_dir()
+        .map(|d| d.to_string_lossy().to_string())
+        .ok_or_else(|| "Cannot determine home directory".to_string())
+}
+
 // ================================================================
 // Provider system — multi-provider API config stored as plaintext JSON
 // ================================================================
@@ -8216,6 +8227,7 @@ pub fn run() {
             unwatch_directory,
             save_temp_file,
             get_file_size,
+            get_home_dir,
             check_file_access,
             read_file_base64,
             list_slash_commands,
